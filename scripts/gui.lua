@@ -379,6 +379,7 @@ end
 function mi_gui.extend_rows(config_rows, c, config_tmp)
     if not config_rows.children[c+1] then
         gui.build(config_rows, {mi_gui.templates.config_row(c+1)})
+        mi_gui.update_modules(config_rows.children[c+1])
         config_tmp[c+1] = {cTable = {}, to = {}}
         config_rows.scroll_to_bottom()
     end
@@ -646,11 +647,12 @@ mi_gui.handlers = {
             if not (config_rows and config_rows.valid) then return end
             local index = tonumber(e.element.parent.parent.name)
             local slot = tonumber(e.element.name)
-
-
             local config = config_tmp[index]
-            config.to[slot] = e.element.elem_value
+
             local entity_proto = config.from and game.entity_prototypes[config.from]
+            if not entity_proto then return end
+
+            config.to[slot] = e.element.elem_value
             if e.element.elem_value then
                 local proto = game.item_prototypes[e.element.elem_value]
                 local success = true
