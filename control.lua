@@ -5,7 +5,7 @@ local migration = require("__flib__.migration")
 local mi_gui = require("scripts.gui")
 local table = require("__flib__.table")
 
-local lib = require "__ModuleInserter__/lib_control"
+local lib = require "__ModuleInserterEx__/lib_control"
 local debugDump = lib.debugDump
 
 local function compare_contents(tbl1, tbl2)
@@ -570,7 +570,7 @@ local migrations = {
         for _, player in pairs(game.players) do
             if player.gui.left.mod_gui_frame_flow and player.gui.left.mod_gui_frame_flow.valid then
                 for _, egui in pairs(player.gui.left.mod_gui_frame_flow.children) do
-                    if egui.get_mod() == "ModuleInserter" then
+                    if egui.get_mod() == "ModuleInserterEx" then
                         egui.destroy()
                     end
                 end
@@ -742,7 +742,7 @@ end)
 
 commands.add_command("mi_clean", "", function()
     for _, egui in pairs(game.player.gui.screen.children) do
-        if egui.get_mod() == "ModuleInserter" then
+        if egui.get_mod() == "ModuleInserterEx" then
             egui.destroy()
         end
     end

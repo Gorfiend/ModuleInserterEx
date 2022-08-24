@@ -8,3 +8,6 @@ Craft the module inserter item (it's where blueprints/deconstruction planner are
 
 Notes:
     Modules will first be taken from your inventory, if you don't have enough it will take them from the logistics network (for entities in logistics range only). The fake entity that is used to make the bots fly to the machine is inserted into your inventory. So it will only work if you have a personal roboport and a couple free slots in your inventory.
+
+
+(Original mod: https://mods.factorio.com/mod/ModuleInserter by Choumiko)

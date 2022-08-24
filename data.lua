@@ -1,9 +1,9 @@
-require "__ModuleInserter__/prototypes/item"
-require "__ModuleInserter__/prototypes/style"
+require "__ModuleInserterEx__/prototypes/item"
+require "__ModuleInserterEx__/prototypes/style"
 
 local data_util = require("__flib__.data-util")
 
-local frame_action_icons = "__ModuleInserter__/graphics/frame-action-icons.png"
+local frame_action_icons = "__ModuleInserterEx__/graphics/frame-action-icons.png"
 
 data:extend{
   -- frame action icons
@@ -41,21 +41,21 @@ data:extend({
         action = 'lua',
         style = 'green',
         icon = {
-            filename = "__ModuleInserter__/graphics/new-module-inserter-x32-white.png",
+            filename = "__ModuleInserterEx__/graphics/new-module-inserter-x32-white.png",
             priority = 'extra-high-no-scale',
             size = 32,
             scale = 1,
             flags = {'icon'},
         },
         small_icon = {
-            filename = "__ModuleInserter__/graphics/new-module-inserter-x24-white.png",
+            filename = "__ModuleInserterEx__/graphics/new-module-inserter-x24-white.png",
             priority = 'extra-high-no-scale',
             size = 24,
             scale = 1,
             flags = {'icon'},
         },
         disabled_small_icon = {
-            filename = "__ModuleInserter__/graphics/new-module-inserter-x24-white.png",
+            filename = "__ModuleInserterEx__/graphics/new-module-inserter-x24-white.png",
             priority = 'extra-high-no-scale',
             size = 24,
             scale = 1,
@@ -65,7 +65,7 @@ data:extend({
     {
         type = "selection-tool",
         name = "module-inserter",
-        icon = "__ModuleInserter__/graphics/module-inserter-icon.png",
+        icon = "__ModuleInserterEx__/graphics/module-inserter-icon.png",
         icon_size = 32,
         icon_mipmaps = 0,
         flags = {"hidden", "not-stackable", "mod-openable"},

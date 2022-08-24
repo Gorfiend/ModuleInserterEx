@@ -51,7 +51,7 @@ local function export_config(config_data, name)
             book_inventory[index].label = preset_name
             index = index + 1
         end
-        book.label = "ModuleInserter Configuration"
+        book.label = "ModuleInserterEx Configuration"
         result = book.export_stack()
         inventory.destroy()
     end
@@ -96,7 +96,7 @@ local function import_config(bp_string)
     if result ~= 0 then return result end
 
     if stack.type == "blueprint" then
-        local name = stack.label or "ModuleInserter Configuration"
+        local name = stack.label or "ModuleInserterEx Configuration"
         local config = to_config(stack.get_blueprint_entities())
         inventory.destroy()
         return result, config, name
@@ -106,7 +106,7 @@ local function import_config(bp_string)
         local book_inventory = stack.get_inventory(defines.inventory.item_main)
         for i = 1, #book_inventory do
             item = book_inventory[i]
-            name = item.label or "ModuleInserter Configuration"
+            name = item.label or "ModuleInserterEx Configuration"
             storage[name] = to_config(item.get_blueprint_entities())
         end
         return result, storage
