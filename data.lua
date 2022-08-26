@@ -78,7 +78,7 @@ data:extend({
         alt_selection_cursor_box_type = "copy",
         entity_type_filters = {"mining-drill", "furnace", "assembling-machine", "lab", "beacon", "rocket-silo", "item-request-proxy"},
         entity_filter_mode = "whitelist",
-        alt_entity_filters = {"item-request-proxy"},
+        alt_entity_type_filters = {"mining-drill", "furnace", "assembling-machine", "lab", "beacon", "rocket-silo", "item-request-proxy"},
         alt_entity_filter_mode = "whitelist",
     },
 })

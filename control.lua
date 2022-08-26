@@ -176,6 +176,11 @@ local function create_upgrade_planner(contents, desired, desired_count, upgrade_
 end
 
 local function create_request_proxy(entity, modules, desired, proxies, player, create_entity, upgrade_planner)
+    if entity.type == "entity-ghost" then
+        entity.item_requests = desired
+        return proxies
+    end
+
     local module_inventory = entity.get_module_inventory()
     if not module_inventory then
         return proxies
@@ -372,9 +377,8 @@ local function on_player_selected_area(e)
         local message = false
         local default_config = config["mi-default-proxy-machine"]
         for i, entity in pairs(e.entities) do
-            ent_name = entity.name
             --remove existing proxies if we have a config for it's target
-            if ent_name == "item-request-proxy" then
+            if entity.name == "item-request-proxy" then
                 target = entity.proxy_target
                 if target and target.valid and (config[target.name] or default_config) then -- also check config.default
                     entity.destroy{raise_destroy = true}
@@ -382,15 +386,22 @@ local function on_player_selected_area(e)
                 goto continue
             end
 
-            local entity_configs = config[ent_name]
+            local is_ghost = entity.type == "entity-ghost"
+            local function ent_prop(field)
+                if is_ghost then return entity["ghost_"..field] end
+                return entity[field]
+            end
+
+            local entity_configs = config[ent_prop("name")]
             if not entity_configs then
                 if not default_config then
                     goto continue
                 else
                     entity_configs = table.deep_copy(default_config)
                     for _, e_config in pairs(entity_configs) do
-                        if entity.prototype.module_inventory_size < #e_config.to then
-                            for m = entity.prototype.module_inventory_size + 1, #e_config.to do
+                        local ent_slots = ent_prop("prototype").module_inventory_size
+                        if ent_slots < #e_config.to then
+                            for m = ent_slots + 1, #e_config.to do
                                 e_config.to[m] = nil
                             end
                             e_config.limitations = false
@@ -412,7 +423,7 @@ local function on_player_selected_area(e)
             end
 
 
-            ent_type = entity.type
+            ent_type = ent_prop("type")
             local recipe = ent_type == "assembling-machine" and entity.get_recipe()
             recipe = recipe and recipe.name
             local entity_config = nil
@@ -469,6 +480,8 @@ local function on_player_alt_selected_area(e)
         for _, entity in pairs(e.entities) do
             if entity.name == "item-request-proxy" then
                 entity.destroy{raise_destroy = true}
+            elseif entity.type == "entity-ghost" then
+                entity.item_requests = {}
             end
         end
         conditional_events()
