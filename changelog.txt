@@ -4,6 +4,7 @@ Date: ????
   Changes:
     - Add ability to specify a default module configuration for a planner
     - Add support for changing module requests in ghosts
+    - Don't place a module-inserter item into your inventory if the top-left mod button is enabled
   Bugfixes:
     - Fixed crash when selecting a module on a row without an assembler selected
     - Additional check for the module inserter item added on the open event. This prevents module inserter from overwriting other items from other mods allowing parallel use of them (e.g. RailSignalPlanner, Artillery Bombardment Remote)

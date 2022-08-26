@@ -767,19 +767,22 @@ event.on_entity_destroyed(function(e)
     end
 end)
 
--- event.on_player_cursor_stack_changed(function(e)
---     local player = game.get_player(e.player_index)
---     if player.cursor_stack.valid_for_read and player.cursor_stack.name == "module-inserter" then
---         global._pdata[e.player_index].cursor = true
---     elseif global._pdata[e.player_index].cursor then
---         global._pdata[e.player_index].cursor = false
---         local inv = player.get_main_inventory()
---         local count = inv.get_item_count("module-inserter")
---         if count > 1 then
---             inv.remove{name = "module-inserter", count = count - 1}
---         end
---     end
--- end)
+event.on_player_cursor_stack_changed(function(e)
+    local player = game.get_player(e.player_index)
+    if player.mod_settings["module_inserter_hide_button"].value then return end
+    -- Track if they have the module inserter in hand, then when they let go remove it from their inventory
+    -- Don't do this if the mod gui button to open the inserter options is disabled
+    if player.cursor_stack.valid_for_read and player.cursor_stack.name == "module-inserter" then
+        global._pdata[e.player_index].cursor = true
+    elseif global._pdata[e.player_index].cursor then
+        global._pdata[e.player_index].cursor = false
+        local inv = player.get_main_inventory()
+        local count = inv.get_item_count("module-inserter")
+        if count > 0 then
+            inv.remove{name = "module-inserter", count = count}
+        end
+    end
+end)
 
 commands.add_command("mi_clean", "", function()
     for _, egui in pairs(game.player.gui.screen.children) do
