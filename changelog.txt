@@ -1,6 +1,6 @@
 ---------------------------------------------------------------------------------------------------
 Version: 6.0.0
-Date: ????
+Date: 2022-08-27
   Changes:
     - Add ability to specify a default module configuration for a planner
     - Add support for changing module requests in ghosts

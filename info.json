@@ -7,9 +7,6 @@
   "description": "Mass insert/remove modules into machines with construction robots",
   "dependencies": ["flib >= 0.6.0"],
   "package":{
-    "scripts": {
-        "prepackage": "luacheck . --config '../.luacheckrc'"
-    },
     "ignore":[ "*.zip", "*.xcf" ]
   }
 }

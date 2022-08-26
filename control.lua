@@ -5,7 +5,7 @@ local migration = require("__flib__.migration")
 local mi_gui = require("scripts.gui")
 local table = require("__flib__.table")
 
-local lib = require "__ModuleInserterEx__/lib_control"
+local lib = require("__ModuleInserterEx__/lib_control")
 local debugDump = lib.debugDump
 
 local function compare_contents(tbl1, tbl2)
@@ -370,11 +370,11 @@ local function on_player_selected_area(e)
             player.print({"module-inserter-config-not-set"})
             return
         end
-        local ent_type, ent_name, target
+        local ent_type, target
         local surface = player.surface
         local delay = e.tick
         local max_proxies = settings.global["module_inserter_proxies_per_tick"].value
-        local message = false
+        local message = nil
         local default_config = config["mi-default-proxy-machine"]
         for i, entity in pairs(e.entities) do
             --remove existing proxies if we have a config for it's target
@@ -642,7 +642,11 @@ local migrations = {
             for _, config in pairs(pdata.config) do
                 if config.from then
                     config_by_entity[config.from] = config_by_entity[config.from] or {}
-                    config_by_entity[config.from][table_size(config_by_entity[config.from])+1] = {to = config.to, cTable = config.cTable, limitations = config.limitations}
+                    config_by_entity[config.from][table_size(config_by_entity[config.from]) + 1] = {
+                        to = config.to,
+                        cTable = config.cTable,
+                        limitations = config.limitations
+                    }
                 end
             end
             pdata.config_by_entity = config_by_entity

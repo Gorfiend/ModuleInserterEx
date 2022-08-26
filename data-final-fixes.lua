@@ -1,6 +1,6 @@
 
 local ent = table.deepcopy(data.raw["assembling-machine"]["assembling-machine-3"])
-signal_anything = data.raw["virtual-signal"]["signal-anything"]
+local signal_anything = data.raw["virtual-signal"]["signal-anything"]
 
 ent.name = "mi-default-proxy-machine"
 ent.icons = nil

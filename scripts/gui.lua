@@ -72,7 +72,7 @@ local function import_config(bp_string)
             if global.nameToSlots[ent.name] then
                 if ent.items then
                     for module, amount in pairs(ent.items) do
-                        for i = 1, amount do
+                        for _ = 1, amount do
                             modules[table_size(modules)+1] = module
                         end
                     end
@@ -567,7 +567,11 @@ mi_gui.handlers = {
             for _, config in pairs(e.pdata.config) do
                 if config.from then
                     config_by_entity[config.from] = config_by_entity[config.from] or {}
-                    config_by_entity[config.from][table_size(config_by_entity[config.from])+1] = {to = config.to, cTable = config.cTable, limitations = config.limitations}
+                    config_by_entity[config.from][table_size(config_by_entity[config.from]) + 1] = {
+                        to = config.to,
+                        cTable = config.cTable,
+                        limitations = config.limitations
+                    }
                 end
             end
             e.pdata.config_by_entity = config_by_entity
