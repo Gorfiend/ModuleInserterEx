@@ -368,12 +368,13 @@ local function on_player_selected_area(e)
         local delay = e.tick
         local max_proxies = settings.global["module_inserter_proxies_per_tick"].value
         local message = false
+        local default_config = config["mi-default-proxy-machine"]
         for i, entity in pairs(e.entities) do
             ent_name = entity.name
             --remove existing proxies if we have a config for it's target
             if ent_name == "item-request-proxy" then
                 target = entity.proxy_target
-                if target and target.valid and config[target.name] then
+                if target and target.valid and (config[target.name] or default_config) then -- also check config.default
                     entity.destroy{raise_destroy = true}
                 end
                 goto continue
@@ -381,8 +382,33 @@ local function on_player_selected_area(e)
 
             local entity_configs = config[ent_name]
             if not entity_configs then
-                goto continue
+                if not default_config then
+                    goto continue
+                else
+                    entity_configs = table.deep_copy(default_config)
+                    for _, e_config in pairs(entity_configs) do
+                        if entity.prototype.module_inventory_size < #e_config.to then
+                            for m = entity.prototype.module_inventory_size + 1, #e_config.to do
+                                e_config.to[m] = nil
+                            end
+                            e_config.limitations = false
+                            e_config.cTable = {}
+                            local prototype, limitations
+                            for _, module in pairs(e_config.to) do
+                                if module then
+                                    prototype = game.item_prototypes[module]
+                                    limitations = prototype and prototype.limitations
+                                    if limitations and next(limitations) then
+                                        e_config.limitations = true
+                                    end
+                                    e_config.cTable[module] = (e_config.cTable[module] or 0) + 1
+                                end
+                            end
+                        end
+                    end
+                end
             end
+
 
             ent_type = entity.type
             local recipe = ent_type == "assembling-machine" and entity.get_recipe()

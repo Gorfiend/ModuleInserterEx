@@ -1,7 +1,8 @@
 ---------------------------------------------------------------------------------------------------
-Version: 5.2.5
+Version: 6.0.0
 Date: ????
   Changes:
+    - Add ability to specify a default module configuration for a planner
   Bugfixes:
     - Fixed crash when selecting a module on a row without an assembler selected
 ---------------------------------------------------------------------------------------------------
