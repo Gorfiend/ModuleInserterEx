@@ -80,5 +80,7 @@ data:extend({
         entity_filter_mode = "whitelist",
         alt_entity_type_filters = {"mining-drill", "furnace", "assembling-machine", "lab", "beacon", "rocket-silo", "item-request-proxy"},
         alt_entity_filter_mode = "whitelist",
+        reverse_entity_type_filters = {"mining-drill", "furnace", "assembling-machine", "lab", "beacon", "rocket-silo", "item-request-proxy"},
+        reverse_entity_filter_mode = "whitelist",
     },
 })

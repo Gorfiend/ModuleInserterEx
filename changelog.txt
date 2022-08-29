@@ -1,4 +1,9 @@
 ---------------------------------------------------------------------------------------------------
+Version: 6.1.0
+Date: 2022-08-29
+  Changes:
+    - Added reverse select function (like "downgrade mode" for the upgrade planner) that removes all modules in selected machines
+---------------------------------------------------------------------------------------------------
 Version: 6.0.0
 Date: 2022-08-27
   Changes:

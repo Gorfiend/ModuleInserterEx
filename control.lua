@@ -492,6 +492,43 @@ local function on_player_alt_selected_area(e)
     end
 end
 
+local function on_player_reverse_selected_area(e)
+    local status, err = pcall(function()
+        local player_index = e.player_index
+        if e.item ~= "module-inserter" or not player_index then return end
+
+        local player = game.get_player(player_index)
+        local surface = player.surface
+        local delay = e.tick
+        local max_proxies = settings.global["module_inserter_proxies_per_tick"].value
+
+        for i, entity in pairs(e.entities) do
+            if entity.name == "item-request-proxy" then
+                entity.destroy{raise_destroy = true}
+            elseif entity.type == "entity-ghost" then
+                entity.item_requests = {}
+            else
+                if (i % max_proxies == 0) then
+                    delay = delay + 1
+                end
+                if not global.to_create[delay] then global.to_create[delay] = {} end
+                global.to_create[delay][entity.unit_number] = {
+                    entity = entity,
+                    modules = {},
+                    cTable = {},
+                    player = player,
+                    surface = surface
+                }
+            end
+        end
+        conditional_events()
+    end)
+    if not status then
+        debugDump(err, true)
+        conditional_events(true)
+    end
+end
+
 local function se_grounded_entity(name)
     local result = name:sub(-9) == "-grounded" -- -#"grounded"
     return result
@@ -730,6 +767,7 @@ end)
 
 event.on_player_selected_area(on_player_selected_area)
 event.on_player_alt_selected_area(on_player_alt_selected_area)
+event.on_player_reverse_selected_area(on_player_reverse_selected_area)
 
 gui.hook_events(function(e)
     local msg = gui.read_action(e)

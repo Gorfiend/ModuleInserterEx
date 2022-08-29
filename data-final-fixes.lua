@@ -23,11 +23,13 @@ ent.allowed_effects = {"speed", "productivity", "consumption", "pollution"}
 
 
 
--- remove electricity usage
 ent.flags = {
   "hidden",
 }
 ent.crafting_speed = 1
+ent.energy_source = {
+  type = "void",
+}
 
 
 data:extend({ent})
