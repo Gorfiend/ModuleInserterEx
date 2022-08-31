@@ -3,113 +3,130 @@ local mod_gui = require("__core__.lualib.mod-gui")
 local table = require("__flib__.table")
 local gui = require("__flib__.gui-beta")
 
-local function export_config(config_data, name)
-    local to_bp_entities = function(data)
-        local entities = {}
-        local bp_index = 1
-        local items
-        for i, config in pairs(data) do
-            if config.from then
-                items = {}
-                for _, module in pairs(config.to) do
-                    items[module] = items[module] and items[module] + 1 or 1
+local function export_config(player, config_data, name)
+    local status, result = pcall(function()
+        local to_bp_entities = function(data)
+            local entities = {}
+            local bp_index = 1
+            local items
+            for i, config in pairs(data) do
+                if config.from then
+                    items = {}
+                    for _, module in pairs(config.to) do
+                        items[module] = items[module] and items[module] + 1 or 1
+                    end
+                    entities[bp_index] = {
+                        entity_number = i,
+                        items = items,
+                        name = config.from,
+                        position = {x = 0, y = i*5.5},
+                    }
+                    bp_index = bp_index + 1
                 end
-                entities[bp_index] = {
-                    entity_number = i,
-                    items = items,
-                    name = config.from,
-                    position = {x = 0, y = i*5.5},
-                    tags = {order = i}
-                }
-                bp_index = bp_index + 1
             end
+            return entities
         end
-        return entities
-    end
-    local inventory, stack, result
-    --export a single preset
-    if name then
-        inventory = game.create_inventory(1)
-        inventory.insert{name = "blueprint"}
-        stack = inventory[1]
-        stack.set_blueprint_entities(to_bp_entities(config_data))
-        stack.label = name
+        local inventory, stack, result
+        --export a single preset
+        if name then
+            inventory = game.create_inventory(1)
+            inventory.insert{name = "blueprint"}
+            stack = inventory[1]
+            stack.set_blueprint_entities(to_bp_entities(config_data))
+            stack.label = name
 
-        result = stack.export_stack()
-        inventory.destroy()
-    --export all presets
-    else
-        inventory = game.create_inventory(1)
-        inventory.insert{name = "blueprint-book"}
-        local book = inventory[1]
-        local book_inventory = book.get_inventory(defines.inventory.item_main)
-        local index = 1
-        for preset_name, preset_config in pairs(config_data) do
-            book_inventory.insert{name = "blueprint"}
-            local res = to_bp_entities(preset_config)
-            book_inventory[index].set_blueprint_entities(res)
-            book_inventory[index].label = preset_name
-            index = index + 1
+            result = stack.export_stack()
+            inventory.destroy()
+        --export all presets
+        else
+            inventory = game.create_inventory(1)
+            inventory.insert{name = "blueprint-book"}
+            local book = inventory[1]
+            local book_inventory = book.get_inventory(defines.inventory.item_main)
+            local index = 1
+            for preset_name, preset_config in pairs(config_data) do
+                book_inventory.insert{name = "blueprint"}
+                local res = to_bp_entities(preset_config)
+                book_inventory[index].set_blueprint_entities(res)
+                book_inventory[index].label = preset_name
+                index = index + 1
+            end
+            book.label = "ModuleInserterEx Configuration"
+            result = book.export_stack()
+            inventory.destroy()
         end
-        book.label = "ModuleInserterEx Configuration"
-        result = book.export_stack()
-        inventory.destroy()
+        return result
+    end)
+    if not status then
+        if string.find(result, "mi-default-proxy-machine", 1, true) then
+            player.print("Exporting preset with \"Anything\" currently not supported")
+        else
+            player.print(result)
+        end
+        return false
+    else
+        return result
     end
-    return result
 end
 
-local function import_config(bp_string)
+local function import_config(player, bp_string)
+    local status, a, b, c = pcall(function()
 
-    local to_config = function(entities)
-        if not entities then return end
-        local config = {}
-        local config_index
-        local modules
-        local c = 0
-        for _, ent in pairs(entities) do
-            modules = {}
-            config_index = ent.tags and ent.tags["order"] or ent.entity_number
-            if global.nameToSlots[ent.name] then
-                if ent.items then
-                    for module, amount in pairs(ent.items) do
-                        for _ = 1, amount do
-                            modules[table_size(modules)+1] = module
+        local to_config = function(entities)
+            if not entities then return end
+            local config = {}
+            local config_index = 0
+            local modules
+            for _, ent in pairs(entities) do
+                if global.nameToSlots[ent.name] then
+                    modules = {}
+                    config_index = config_index + 1
+                    if ent.items then
+                        for module, amount in pairs(ent.items) do
+                            for _ = 1, amount do
+                                modules[table_size(modules)+1] = module
+                            end
                         end
                     end
+                    config[config_index] = {cTable = ent.items or {}, from = ent.name, to = modules}
                 end
-                config[config_index] = {cTable = ent.items or {}, from = ent.name, to = modules}
-                c = config_index > c and config_index or c
             end
-        end
-        for i = 1, START_SIZE do
-            if not config[i] then
-                config[i] = {cTable = {}, to = {}}
+            for i = 1, START_SIZE do
+                if not config[i] then
+                    config[i] = {cTable = {}, to = {}}
+                end
             end
+            return config
         end
-        return config
-    end
 
-    local inventory = game.create_inventory(1)
-    inventory.insert{name = "blueprint"}
-    local stack = inventory[1]
-    local result = stack.import_stack(bp_string)
-    if result ~= 0 then return result end
+        local inventory = game.create_inventory(1)
+        inventory.insert{name = "blueprint"}
+        local stack = inventory[1]
+        local result = stack.import_stack(bp_string)
+        if result ~= 0 then return result end
 
-    if stack.type == "blueprint" then
-        local name = stack.label or "ModuleInserterEx Configuration"
-        local config = to_config(stack.get_blueprint_entities())
-        inventory.destroy()
-        return result, config, name
-    elseif stack.type == "blueprint-book" then
-        local storage = {}
-        local name, item
-        local book_inventory = stack.get_inventory(defines.inventory.item_main)
-        for i = 1, #book_inventory do
-            item = book_inventory[i]
-            name = item.label or "ModuleInserterEx Configuration"
-            storage[name] = to_config(item.get_blueprint_entities())
+        if stack.type == "blueprint" then
+            local name = stack.label or "ModuleInserterEx Configuration"
+            local config = to_config(stack.get_blueprint_entities())
+            inventory.destroy()
+            return result, config, name
+        elseif stack.type == "blueprint-book" then
+            local storage = {}
+            local name, item
+            local book_inventory = stack.get_inventory(defines.inventory.item_main)
+            for i = 1, #book_inventory do
+                item = book_inventory[i]
+                name = item.label or "ModuleInserterEx Configuration"
+                storage[name] = to_config(item.get_blueprint_entities())
+            end
+            return result, storage
         end
-        return result, storage
+    end)
+    if not status then
+        player.print("Import failed: " .. a)
+        return false
+    else
+        return a, b, c
     end
 end
 
@@ -429,8 +446,10 @@ function mi_gui.update_row(pdata, index, assembler, tooltip, slots, modules)--lu
     if not (config_rows and config_rows.valid) then return end
     local row = config_rows.children[index]
     if not row then
-        gui.build(config_rows, {mi_gui.templates.config_row(index)})
-        row = config_rows.children[index]
+        local row_template = mi_gui.templates.config_row(index)
+        row_template.ref = {"child"}
+        local refs = gui.build(config_rows, {row_template})
+        row = refs.child
     end
     row.assembler.elem_value = assembler
     row.assembler.tooltip = tooltip or {"module-inserter-choose-assembler"}
@@ -441,12 +460,13 @@ function mi_gui.update_contents(pdata, clear)
     local config_tmp = pdata.config_tmp
     local assembler, assembler_proto, tooltip
     local slots, modules
+    local index = 0
 
     if clear then
         pdata.gui.main.config_rows.clear()
     end
 
-    for index, config in pairs(config_tmp) do
+    for _, config in pairs(config_tmp) do
         if config.from then
             assembler = config.from
             assembler_proto = assembler and game.entity_prototypes[assembler]
@@ -456,8 +476,14 @@ function mi_gui.update_contents(pdata, clear)
         else
             assembler, tooltip, slots, modules = nil, nil, nil, nil
         end
+        index = index + 1
         mi_gui.update_row(pdata, index, assembler, tooltip, slots, modules)
     end
+
+    for i = index, math.max(index, START_SIZE) do
+        mi_gui.extend_rows(pdata.gui.main.config_rows, i, config_tmp)
+    end
+
     mi_gui.shrink_rows(pdata.gui.main.config_rows, table_size(pdata.gui.main.config_rows.children), config_tmp)
 end
 
@@ -722,7 +748,8 @@ mi_gui.handlers = {
             if stack and stack.valid and stack.valid_for_read and (stack.type == "blueprint" or stack.type == "blueprint-book") then
                 local player = e.player
                 local pdata = e.pdata
-                local result, config, name = import_config(stack.export_stack())
+                local result, config, name = import_config(player, stack.export_stack())
+                if not result then return end
                 if result ~= 0 then
                     player.print({"failed-to-import-string", name})
                     return
@@ -739,7 +766,8 @@ mi_gui.handlers = {
             end
         end,
         export = function(e)
-            local text = export_config(e.pdata.storage)
+            local text = export_config(e.player, e.pdata.storage)
+            if not text then return end
             if e.shift then
                 local stack = e.player.cursor_stack
                 if stack.valid_for_read then
@@ -767,7 +795,18 @@ mi_gui.handlers = {
             if not preset then return end
 
             pdata.config_tmp = table.deep_copy(preset)
-            pdata.config = table.deep_copy(preset)
+            -- Normalize the table, filing in any lower indexes
+            -- Normally not needed, but in case of a bad blueprint import or something
+            local max_index = START_SIZE
+            for k, _ in pairs(pdata.config_tmp) do
+                max_index = math.max(max_index, k)
+            end
+            for i = 1, max_index do
+                if not pdata.config_tmp[i] then
+                    pdata.config_tmp[i] = {cTable = {}, to = {}}
+                end
+            end
+            pdata.config = table.deep_copy(pdata.config_tmp)
 
             --TODO save the last loaded/saved preset somewhere to fill the textfield
             gui_elements.presets.textfield.text = name or ""
@@ -790,7 +829,8 @@ mi_gui.handlers = {
                 return
             end
 
-            local text = export_config(config, name)
+            local text = export_config(e.player, config, name)
+            if not text then return end
             if e.shift then
                 local stack = e.player.cursor_stack
                 if stack.valid_for_read then
@@ -820,7 +860,8 @@ mi_gui.handlers = {
             local player = e.player
             local pdata = e.pdata
             local text_box = pdata.gui.import.textbox
-            local result, config, name = import_config(text_box.text)
+            local result, config, name = import_config(player, text_box.text)
+            if not result then return end
             if result ~= 0 then
                 player.print({"failed-to-import-string", name})
                 return
