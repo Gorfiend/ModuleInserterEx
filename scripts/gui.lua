@@ -81,8 +81,8 @@ local function import_config(bp_string)
                 c = config_index > c and config_index or c
             end
         end
-        if c < START_SIZE then
-            for i = c+1, START_SIZE do
+        for i = 1, START_SIZE do
+            if not config[i] then
                 config[i] = {cTable = {}, to = {}}
             end
         end
