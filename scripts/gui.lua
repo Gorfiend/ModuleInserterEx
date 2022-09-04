@@ -8,10 +8,9 @@ local function export_config(player, config_data, name)
         local to_bp_entities = function(data)
             local entities = {}
             local bp_index = 1
-            local items
             for i, config in pairs(data) do
                 if config.from then
-                    items = {}
+                    local items = {}
                     for _, module in pairs(config.to) do
                         items[module] = items[module] and items[module] + 1 or 1
                     end
@@ -46,23 +45,18 @@ local function export_config(player, config_data, name)
             local index = 1
             for preset_name, preset_config in pairs(config_data) do
                 book_inventory.insert{name = "blueprint"}
-                local res = to_bp_entities(preset_config)
-                book_inventory[index].set_blueprint_entities(res)
+                book_inventory[index].set_blueprint_entities(to_bp_entities(preset_config))
                 book_inventory[index].label = preset_name
                 index = index + 1
             end
-            book.label = "ModuleInserterEx Configuration"
+            book.label = "ModuleInserter Configuration"
             result = book.export_stack()
             inventory.destroy()
         end
         return result
     end)
     if not status then
-        if string.find(result, "mi-default-proxy-machine", 1, true) then
-            player.print("Exporting preset with \"Anything\" currently not supported")
-        else
-            player.print(result)
-        end
+        player.print(result)
         return false
     else
         return result
@@ -106,7 +100,7 @@ local function import_config(player, bp_string)
         if result ~= 0 then return result end
 
         if stack.type == "blueprint" then
-            local name = stack.label or "ModuleInserterEx Configuration"
+            local name = stack.label or "ModuleInserter Configuration"
             local config = to_config(stack.get_blueprint_entities())
             inventory.destroy()
             return result, config, name
@@ -116,7 +110,7 @@ local function import_config(player, bp_string)
             local book_inventory = stack.get_inventory(defines.inventory.item_main)
             for i = 1, #book_inventory do
                 item = book_inventory[i]
-                name = item.label or "ModuleInserterEx Configuration"
+                name = item.label or "ModuleInserter Configuration"
                 storage[name] = to_config(item.get_blueprint_entities())
             end
             return result, storage
@@ -645,6 +639,7 @@ mi_gui.handlers = {
             local config_rows = pdata.gui.main.config_rows
             if not (config_rows and config_rows.valid) then return end
             local index = tonumber(e.element.parent.name)
+            if not index then return end
             local element = e.element
             local elem_value = element.elem_value
 
@@ -677,6 +672,7 @@ mi_gui.handlers = {
             if not (config_rows and config_rows.valid) then return end
             local index = tonumber(e.element.parent.parent.name)
             local slot = tonumber(e.element.name)
+            if not slot then return end
             local config = config_tmp[index]
 
             local entity_proto = config.from and game.entity_prototypes[config.from]

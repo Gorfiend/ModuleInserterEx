@@ -72,6 +72,7 @@ data:extend({
         stack_size = 1,
         selection_color = { r = 0, g = 1, b = 0 },
         alt_selection_color = { r = 0, g = 0, b = 1 },
+        reverse_selection_color = { r = 1, g = 0, b = 0 },
         selection_mode = {"same-force", "deconstruct"},
         alt_selection_mode = {"same-force", "any-entity"},
         selection_cursor_box_type = "copy",
