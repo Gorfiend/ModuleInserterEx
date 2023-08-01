@@ -385,6 +385,11 @@ local function on_player_selected_area(e)
                 end
                 goto continue
             end
+            
+            --skip the entity if it is a tile ghost
+            if entity.type == "tile-ghost" then
+                goto continue
+            end
 
             local is_ghost = entity.type == "entity-ghost"
             local function ent_prop(field)
