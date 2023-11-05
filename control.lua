@@ -198,11 +198,21 @@ local function create_request_proxy(entity, modules, desired, proxies, player, c
         return proxies
     end
 
+    local missing = {}
     local planner = create_upgrade_planner(contents, desired, desired_count, upgrade_planner)
     if planner then
         --print_planner(planner)
         entity.surface.upgrade_area{area = entity.bounding_box, force = player.force, player = player, item = planner, skip_fog_of_war = false}
         planner.clear_upgrade_item()
+        missing = desired
+        local ghost = create_entity{
+            name = "item-request-proxy",
+            position = entity.position,
+            force = entity.force,
+            target = entity,
+            modules = missing,
+            raise_built = true
+        }
         --print_planner(planner)
         local to_add = table_size(modules) - module_inventory.get_item_count()
         local irp
@@ -226,7 +236,6 @@ local function create_request_proxy(entity, modules, desired, proxies, player, c
         end
     end
 
-    local missing = {}
     --local surplus = {}
     local changed
     local diff
