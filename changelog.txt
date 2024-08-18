@@ -1,4 +1,10 @@
 ---------------------------------------------------------------------------------------------------
+Version: 6.1.3
+Date: 2024-08-18
+  Bugfixes:
+    - Add missing build event for upgrades (Fixes issue where Constructron Continued wouldn't see some upgrade events)
+    - Fixed issue that occured when tile ghosts were in the selection area
+---------------------------------------------------------------------------------------------------
 Version: 6.1.2
 Date: 2022-09-04
   Bugfixes:
