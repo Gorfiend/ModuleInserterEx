@@ -47,7 +47,7 @@ end
 local function on_mod_item_opened(e)
     if e.item.name == "module-inserter" then
         e.player = game.get_player(e.player_index)
-        e.pdata = global._pdata[e.player_index]
+        e.pdata = storage._pdata[e.player_index]
         if not e.pdata.gui_open then
             mi_gui.open(e)
         end
@@ -57,7 +57,7 @@ event.on_mod_item_opened(on_mod_item_opened)
 
 event.register("toggle-module-inserter", function(e)
     e.player = game.get_player(e.player_index)
-    e.pdata = global._pdata[e.player_index]
+    e.pdata = storage._pdata[e.player_index]
     mi_gui.toggle(e)
 end)
 
@@ -82,7 +82,7 @@ event.on_lua_shortcut(function(e)
 end)
 
 event.register("mi-confirm-gui", function(e)
-    local pdata =  global._pdata and global._pdata[e.player_index]
+    local pdata =  storage._pdata and storage._pdata[e.player_index]
     if pdata and pdata.gui_open and not pdata.pinned then
         e.pdata = pdata
         e.player = game.get_player(e.player_index)
@@ -321,9 +321,9 @@ local function create_request_proxy(entity, modules, desired, proxies, player, c
 end
 
 local function delayed_creation(e)
-    local current = global.to_create[e.tick]
+    local current = storage.to_create[e.tick]
     if current then
-        local proxies = global.proxies
+        local proxies = storage.proxies
         local ent
         local upgrade_inventory = game.create_inventory(1)
         upgrade_inventory.insert{name = "upgrade-planner"}
@@ -334,32 +334,32 @@ local function delayed_creation(e)
             end
         end
         upgrade_inventory.destroy()
-        global.proxies = proxies
-        global.to_create[e.tick] = nil
+        storage.proxies = proxies
+        storage.to_create[e.tick] = nil
         script.on_nth_tick(e.nth_tick, nil)
     end
 end
 
 local function conditional_events(check)
     if check then
-        for tick, to_create in pairs(global.to_create) do
+        for tick, to_create in pairs(storage.to_create) do
             for id, data in pairs(to_create) do
                 if not (data.entity and data.entity.valid) then
                     to_create[id] = nil
                 end
             end
             if not next(to_create) then
-                global.to_create[tick] = nil
+                storage.to_create[tick] = nil
             end
         end
     end
-    for tick in pairs(global.to_create) do
+    for tick in pairs(storage.to_create) do
         script.on_nth_tick(tick, delayed_creation)
     end
 end
 
 local function modules_allowed(recipe, modules)
-    local restricted_modules = global.restricted_modules
+    local restricted_modules = storage.restricted_modules
     for module, _ in pairs(modules) do
         if restricted_modules[module] and not restricted_modules[module][recipe] then
             return false
@@ -373,7 +373,7 @@ local function on_player_selected_area(e)
         local player_index = e.player_index
         if e.item ~= "module-inserter" or not player_index then return end
         local player = game.get_player(player_index)
-        local pdata = global._pdata[player_index]
+        local pdata = storage._pdata[player_index]
         local config = pdata.config_by_entity
         if not config then
             player.print({"module-inserter-config-not-set"})
@@ -466,8 +466,8 @@ local function on_player_selected_area(e)
                 if (i % max_proxies == 0) then
                     delay = delay + 1
                 end
-                if not global.to_create[delay] then global.to_create[delay] = {} end
-                global.to_create[delay][entity.unit_number] = {
+                if not storage.to_create[delay] then storage.to_create[delay] = {} end
+                storage.to_create[delay][entity.unit_number] = {
                     entity = entity,
                     modules = table.shallow_copy(entity_config.to),
                     cTable = table.shallow_copy(cTable),
@@ -525,8 +525,8 @@ local function on_player_reverse_selected_area(e)
                 if (i % max_proxies == 0) then
                     delay = delay + 1
                 end
-                if not global.to_create[delay] then global.to_create[delay] = {} end
-                global.to_create[delay][entity.unit_number] = {
+                if not storage.to_create[delay] then storage.to_create[delay] = {} end
+                storage.to_create[delay][entity.unit_number] = {
                     entity = entity,
                     modules = {},
                     cTable = {},
@@ -549,25 +549,25 @@ local function se_grounded_entity(name)
 end
 
 local function create_lookup_tables()
-    global.nameToSlots = {}
-    global.module_entities = {}
+    storage.nameToSlots = {}
+    storage.module_entities = {}
     local i = 1
     for name, prototype in pairs(game.entity_prototypes) do
         if prototype.module_inventory_size and prototype.module_inventory_size > 0 and not se_grounded_entity(name) then
-            global.nameToSlots[name] = prototype.module_inventory_size
-            global.module_entities[i] = name
+            storage.nameToSlots[name] = prototype.module_inventory_size
+            storage.module_entities[i] = name
             i = i + 1
         end
     end
-    global.restricted_modules = {}
+    storage.restricted_modules = {}
     local limitations
     for name, module in pairs(game.item_prototypes) do
         if module.type == "module" then
             limitations = module.limitations
             if limitations and next(limitations) then
-                global.restricted_modules[name] = {}
+                storage.restricted_modules[name] = {}
                 for _, recipe in pairs(limitations) do
-                    global.restricted_modules[name][recipe] = true
+                    storage.restricted_modules[name][recipe] = true
                 end
             end
         end
@@ -594,13 +594,13 @@ local function remove_invalid_items()
                     config.cTable[m] = nil
                     removed_modules[config.from] = true
                 end
-                if global.restricted_modules[m] then
+                if storage.restricted_modules[m] then
                     config.limitations = true
                 end
             end
         end
     end
-    for _, pdata in pairs(global._pdata) do
+    for _, pdata in pairs(storage._pdata) do
         _remove(pdata.config)
         if pdata.config_tmp then
             _remove(pdata.config_tmp)
@@ -618,17 +618,17 @@ local function remove_invalid_items()
 end
 
 local function init_global()
-    global.proxies = global.proxies or {}
-    global.to_create = global.to_create or {}
-    global.nameToSlots = global.nameToSlots or {}
-    global.restricted_modules = global.restricted_modules or {}
-    global._pdata = global._pdata or {}
+    storage.proxies = storage.proxies or {}
+    storage.to_create = storage.to_create or {}
+    storage.nameToSlots = storage.nameToSlots or {}
+    storage.restricted_modules = storage.restricted_modules or {}
+    storage._pdata = storage._pdata or {}
 end
 
 local function init_player(i)
     init_global()
-    local pdata = global._pdata[i] or {}
-    global._pdata[i] = {
+    local pdata = storage._pdata[i] or {}
+    storage._pdata[i] = {
         last_preset = pdata.last_preset or "",
         config = pdata.config or {},
         storage = pdata.storage or {},
@@ -656,7 +656,7 @@ end)
 
 local migrations = {
     ["4.1.7"]  = function()
-        global = {}
+        storage = {}
         init_global()
         init_players()
         for _, player in pairs(game.players) do
@@ -673,7 +673,7 @@ local migrations = {
         init_players()
         local gui_e, pdata
         for i, _ in pairs(game.players) do
-            pdata = global._pdata[i]
+            pdata = storage._pdata[i]
             gui_e = pdata.gui_elements
             if gui_e then
                 if gui_e.config_frame and gui_e.config_frame.valid then
@@ -683,7 +683,7 @@ local migrations = {
                     gui_e.preset_frame.destroy()
                 end
                 init_player(i)
-                pdata = global._pdata[i]
+                pdata = storage._pdata[i]
                 if gui_e.main_button and gui_e.main_button.valid then
                     gui_e.main_button.destroy()
                 end
@@ -709,7 +709,7 @@ local migrations = {
     end,
     ["5.1.5"] = function()
         local to_register = {}
-        for _, proxies in pairs(global.proxies) do
+        for _, proxies in pairs(storage.proxies) do
             for _, data in pairs(proxies) do
                 if data.proxy and data.target then
                     if data.proxy.valid and table_size(data.cTable) > 1 then
@@ -725,34 +725,34 @@ local migrations = {
             end
         end
         event.on_tick(nil)
-        global.proxies = to_register
+        storage.proxies = to_register
         conditional_events(true)
     end,
     ["5.1.7"] = function()
-        for id, data in pairs(global.proxies) do
+        for id, data in pairs(storage.proxies) do
             if not (data.target and data.target.valid) then
-                global.proxies[id] = nil
+                storage.proxies[id] = nil
             end
         end
     end,
     ["5.1.8"] = function()
-        for pi, pdata in pairs(global._pdata) do
+        for pi, pdata in pairs(storage._pdata) do
             local player = game.get_player(pi)
             if player and pdata.gui.main_button and pdata.gui.main_button.valid then
                 pdata.gui.main_button = nil
             elseif not player then
-                global._pdata[pi] = nil
+                storage._pdata[pi] = nil
             end
         end
     end,
     ["5.1.9"] = function()
-        for _, pdata in pairs(global._pdata) do
+        for _, pdata in pairs(storage._pdata) do
             pdata.pinned = false
         end
     end,
     ["5.2.2"] = function()
         for i, player in pairs(game.players) do
-            local pdata = global._pdata[i]
+            local pdata = storage._pdata[i]
             if pdata and pdata.gui then
                 pdata.gui.main_button = nil
             end
@@ -770,7 +770,7 @@ event.on_configuration_changed(function(e)
     create_lookup_tables()
     remove_invalid_items()
     if migration.on_config_changed(e, migrations) then
-        for pi, pdata in pairs(global._pdata) do
+        for pi, pdata in pairs(storage._pdata) do
             mi_gui.destroy(pdata, game.get_player(pi))
             mi_gui.create(pi)
         end
@@ -787,7 +787,7 @@ gui.hook_events(function(e)
     local msg = gui.read_action(e)
     if msg then
         e.player = game.get_player(e.player_index)
-        e.pdata = global._pdata[e.player_index]
+        e.pdata = storage._pdata[e.player_index]
         local gui_handler = mi_gui.handlers[msg.gui]
         local handler = gui_handler and gui_handler[msg.action]
         if handler then
@@ -803,7 +803,7 @@ event.on_player_created(function(e)
 end)
 
 event.on_player_removed(function(e)
-    global._pdata[e.player_index] = nil
+    storage._pdata[e.player_index] = nil
 end)
 
 event.on_runtime_mod_setting_changed(function(e)
@@ -814,12 +814,12 @@ event.on_runtime_mod_setting_changed(function(e)
 end)
 
 event.on_entity_destroyed(function(e)
-    if e.unit_number and global.proxies[e.unit_number] then
-        local data = global.proxies[e.unit_number]
+    if e.unit_number and storage.proxies[e.unit_number] then
+        local data = storage.proxies[e.unit_number]
         if data.target and data.target.valid then
             sort_modules(data.target, data.modules, data.cTable)
         end
-        global.proxies[e.unit_number] = nil
+        storage.proxies[e.unit_number] = nil
     end
 end)
 
@@ -829,9 +829,9 @@ event.on_player_cursor_stack_changed(function(e)
     -- Track if they have the module inserter in hand, then when they let go remove it from their inventory
     -- Don't do this if the mod gui button to open the inserter options is disabled
     if player.cursor_stack.valid_for_read and player.cursor_stack.name == "module-inserter" then
-        global._pdata[e.player_index].cursor = true
-    elseif global._pdata[e.player_index].cursor then
-        global._pdata[e.player_index].cursor = false
+        storage._pdata[e.player_index].cursor = true
+    elseif storage._pdata[e.player_index].cursor then
+        storage._pdata[e.player_index].cursor = false
         local inv = player.get_main_inventory()
         local count = inv.get_item_count("module-inserter")
         if count > 0 then

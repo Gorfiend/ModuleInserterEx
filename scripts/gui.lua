@@ -72,7 +72,7 @@ local function import_config(player, bp_string)
             local config_index = 0
             local modules
             for _, ent in pairs(entities) do
-                if global.nameToSlots[ent.name] then
+                if storage.nameToSlots[ent.name] then
                     modules = {}
                     config_index = config_index + 1
                     if ent.items then
@@ -130,7 +130,7 @@ mi_gui.templates = {
     assembler_button = function(assembler)
         return {type = "choose-elem-button", name = "assembler", style = "slot_button", style_mods = { right_margin = 6},
                 actions = {on_elem_changed = {gui = "main", action = "choose_assembler"}},
-                elem_type = "entity", elem_filters = {{filter = "name", name = global.module_entities}},
+                elem_type = "entity", elem_filters = {{filter = "name", name = storage.module_entities}},
                 entity = assembler,
                 tooltip = assembler and game.entity_prototypes[assembler].localised_name or {"module-inserter-choose-assembler"}
         }
@@ -147,7 +147,7 @@ mi_gui.templates = {
     config_row = function(index, config)
         config = config or {}
         local assembler = config.from
-        local slots = assembler and global.nameToSlots[assembler] or 2
+        local slots = assembler and storage.nameToSlots[assembler] or 2
         local modules = config.to or {}
         local row = {type = "flow", direction = "horizontal", name = index, style_mods = {horizontal_spacing = 0}, children = {
                         mi_gui.templates.assembler_button(assembler),
@@ -248,7 +248,7 @@ function mi_gui.update_main_button(player)
 end
 
 function mi_gui.create(player_index)
-    local pdata = global._pdata[player_index]
+    local pdata = storage._pdata[player_index]
     local player = game.get_player(player_index)
     if not player or not pdata then return end
 
@@ -465,7 +465,7 @@ function mi_gui.update_contents(pdata, clear)
             assembler = config.from
             assembler_proto = assembler and game.entity_prototypes[assembler]
             tooltip = assembler_proto and assembler_proto.localised_name
-            slots = config.from and global.nameToSlots[config.from]
+            slots = config.from and storage.nameToSlots[config.from]
             modules = config.to
         else
             assembler, tooltip, slots, modules = nil, nil, nil, nil
@@ -660,7 +660,7 @@ mi_gui.handlers = {
             element.tooltip = game.entity_prototypes[elem_value].localised_name
             config_tmp[index].from = elem_value
 
-            mi_gui.update_modules(config_rows.children[index], global.nameToSlots[elem_value])
+            mi_gui.update_modules(config_rows.children[index], storage.nameToSlots[elem_value])
             if index == c then
                 mi_gui.extend_rows(config_rows, c, config_tmp)
             end

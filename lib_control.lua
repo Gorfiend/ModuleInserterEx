@@ -13,7 +13,7 @@ local function debugDump(var, force)
 end
 
 local function saveVar(var, name)
-    var = var or global
+    var = var or storage
     local n = name or ""
     game.write_file("module"..n..".lua", serpent.block(var, {name="global"}))
 end
