@@ -1,4 +1,3 @@
-local event = require("__flib__.event")
 local gui = require("__flib__.gui-beta")
 local mod_gui = require("__core__.lualib.mod-gui")
 local migration = require("__flib__.migration")
@@ -44,7 +43,7 @@ local function sort_modules(entity, modules, cTable)
     end
 end
 
-local function on_mod_item_opened(e)
+script.on_event(defines.events.on_mod_item_opened, function(e)
     if e.item.name == "module-inserter" then
         e.player = game.get_player(e.player_index)
         e.pdata = storage._pdata[e.player_index]
@@ -52,10 +51,9 @@ local function on_mod_item_opened(e)
             mi_gui.open(e)
         end
     end
-end
-event.on_mod_item_opened(on_mod_item_opened)
+end)
 
-event.register("toggle-module-inserter", function(e)
+script.on_event("toggle-module-inserter", function(e)
     e.player = game.get_player(e.player_index)
     e.pdata = storage._pdata[e.player_index]
     mi_gui.toggle(e)
@@ -73,15 +71,14 @@ local function get_module_inserter(e)
     end
 end
 
-event.register("get-module-inserter", get_module_inserter)
-
-event.on_lua_shortcut(function(e)
+script.on_event("get-module-inserter", get_module_inserter)
+script.on_event(defines.events.on_lua_shortcut, function(e)
     if e.prototype_name == "module-inserter" then
         get_module_inserter(e)
     end
 end)
 
-event.register("mi-confirm-gui", function(e)
+script.on_event("mi-confirm-gui", function(e)
     local pdata =  storage._pdata and storage._pdata[e.player_index]
     if pdata and pdata.gui_open and not pdata.pinned then
         e.pdata = pdata
@@ -229,7 +226,7 @@ local function create_request_proxy(entity, modules, desired, proxies, player, c
         end
         if to_add == 0 then
             if irp and needs_sorting then
-                script.register_on_entity_destroyed(irp)
+                script.register_on_object_destroyed(irp)
                 proxies[irp.unit_number] = {modules = modules, cTable = desired, target = entity}
             end
             return proxies
@@ -266,7 +263,7 @@ local function create_request_proxy(entity, modules, desired, proxies, player, c
             raise_built = true
         }
         if ghost and needs_sorting then
-            script.register_on_entity_destroyed(ghost)
+            script.register_on_object_destroyed(ghost)
             proxies[ghost.unit_number] = {modules = modules, cTable = desired, target = entity}
         end
         return proxies
@@ -313,7 +310,7 @@ local function create_request_proxy(entity, modules, desired, proxies, player, c
             raise_built = true
         }
         if ghost and needs_sorting then
-            script.register_on_entity_destroyed(ghost)
+            script.register_on_object_destroyed(ghost)
             proxies[ghost.unit_number] = {modules = modules, cTable = desired, target = entity}
         end
     end
@@ -423,7 +420,7 @@ local function on_player_selected_area(e)
                             local prototype, limitations
                             for _, module in pairs(e_config.to) do
                                 if module then
-                                    prototype = game.item_prototypes[module]
+                                    prototype = prototypes.item[module]
                                     limitations = prototype and prototype.limitations
                                     if limitations and next(limitations) then
                                         e_config.limitations = true
@@ -552,7 +549,7 @@ local function create_lookup_tables()
     storage.nameToSlots = {}
     storage.module_entities = {}
     local i = 1
-    for name, prototype in pairs(game.entity_prototypes) do
+    for name, prototype in pairs(prototypes.entity) do
         if prototype.module_inventory_size and prototype.module_inventory_size > 0 and not se_grounded_entity(name) then
             storage.nameToSlots[name] = prototype.module_inventory_size
             storage.module_entities[i] = name
@@ -561,7 +558,7 @@ local function create_lookup_tables()
     end
     storage.restricted_modules = {}
     local limitations
-    for name, module in pairs(game.item_prototypes) do
+    for name, module in pairs(prototypes.item) do
         if module.type == "module" then
             limitations = module.limitations
             if limitations and next(limitations) then
@@ -575,8 +572,8 @@ local function create_lookup_tables()
 end
 
 local function remove_invalid_items()
-    local items = game.item_prototypes
-    local entities = game.entity_prototypes
+    local items = prototypes.item
+    local entities = prototypes.entity
     local removed_entities = {}
     local removed_modules = {}
     local function _remove(tbl)
@@ -644,13 +641,13 @@ local function init_players()
     end
 end
 
-event.on_init(function()
+script.on_init(function()
     create_lookup_tables()
     init_global()
     init_players()
 end)
 
-event.on_load(function()
+script.on_load(function()
     conditional_events()
 end)
 
@@ -713,7 +710,7 @@ local migrations = {
             for _, data in pairs(proxies) do
                 if data.proxy and data.target then
                     if data.proxy.valid and table_size(data.cTable) > 1 then
-                        script.register_on_entity_destroyed(data.proxy)
+                        script.register_on_object_destroyed(data.proxy)
                         to_register[data.proxy.unit_number] = {modules = data.modules, cTable = data.cTable, target = data.target}
                     end
                     if not data.proxy.valid then
@@ -724,7 +721,7 @@ local migrations = {
                 end
             end
         end
-        event.on_tick(nil)
+        script.on_event(defines.events.on_tick, nil)
         storage.proxies = to_register
         conditional_events(true)
     end,
@@ -766,7 +763,7 @@ local migrations = {
     end,
 }
 
-event.on_configuration_changed(function(e)
+script.on_configuration_changed(function(e)
     create_lookup_tables()
     remove_invalid_items()
     if migration.on_config_changed(e, migrations) then
@@ -779,9 +776,9 @@ event.on_configuration_changed(function(e)
     conditional_events(true)
 end)
 
-event.on_player_selected_area(on_player_selected_area)
-event.on_player_alt_selected_area(on_player_alt_selected_area)
-event.on_player_reverse_selected_area(on_player_reverse_selected_area)
+script.on_event(defines.events.on_player_selected_area, on_player_selected_area)
+script.on_event(defines.events.on_player_alt_selected_area, on_player_alt_selected_area)
+script.on_event(defines.events.on_player_reverse_selected_area, on_player_reverse_selected_area)
 
 gui.hook_events(function(e)
     local msg = gui.read_action(e)
@@ -798,22 +795,22 @@ gui.hook_events(function(e)
     end
 end)
 
-event.on_player_created(function(e)
+script.on_event(defines.events.on_player_created, function(e)
     init_player(e.player_index)
 end)
 
-event.on_player_removed(function(e)
+script.on_event(defines.events.on_player_removed, function(e)
     storage._pdata[e.player_index] = nil
 end)
 
-event.on_runtime_mod_setting_changed(function(e)
+script.on_event(defines.events.on_runtime_mod_setting_changed, function(e)
     if not e.player_index then return end
     if e.setting == "module_inserter_button_style" or e.setting == "module_inserter_hide_button" then
         mi_gui.update_main_button(game.get_player(e.player_index))
     end
 end)
 
-event.on_entity_destroyed(function(e)
+script.on_event(defines.events.on_object_destroyed, function(e)
     if e.unit_number and storage.proxies[e.unit_number] then
         local data = storage.proxies[e.unit_number]
         if data.target and data.target.valid then
@@ -823,7 +820,7 @@ event.on_entity_destroyed(function(e)
     end
 end)
 
-event.on_player_cursor_stack_changed(function(e)
+script.on_event(defines.events.on_player_cursor_stack_changed, function(e)
     local player = game.get_player(e.player_index)
     if player.mod_settings["module_inserter_hide_button"].value then return end
     -- Track if they have the module inserter in hand, then when they let go remove it from their inventory

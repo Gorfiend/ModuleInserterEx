@@ -6,7 +6,7 @@
   "author": "Gorfiend (Original author: Choumiko)",
   "homepage": "https://github.com/Gorfiend/ModuleInserterEx",
   "description": "Mass insert/remove modules into machines with construction robots",
-  "dependencies": ["flib >= 0.6.0", "! ModuleInserter", "! ModuleInserterER"],
+  "dependencies": ["flib >= 0.15.0", "! ModuleInserter", "! ModuleInserterER"],
   "package":{
     "ignore":[ "*.zip", "*.xcf" ]
   }
