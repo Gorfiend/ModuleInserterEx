@@ -852,7 +852,7 @@ mi_gui.handlers = {
                     local itemEffects = proto.module_effects
                     if entity_proto and itemEffects then
                         for name, effect in pairs(itemEffects) do
-                            if effect and effect.bonus ~= 0 and not entity_proto.allowed_effects[name] then
+                            if effect ~= 0 and not entity_proto.allowed_effects[name] then
                                 success = false
                                 e.player.print({"inventory-restriction.cant-insert-module", proto.localised_name, entity_proto.localised_name})
                                 config.to[slot] = nil

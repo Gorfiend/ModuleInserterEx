@@ -1,5 +1,4 @@
 local gui = require("__flib__.gui")
-local mod_gui = require("__core__.lualib.mod-gui")
 local migration = require("__flib__.migration")
 local mi_gui = require("scripts.gui")
 local table = require("__flib__.table")
@@ -37,9 +36,11 @@ storage = {}
 --- @field pdata PlayerConfig
 
 --- @class ModuleConfig
---- @field cTable {[string]:int} modules mapped to their count
+--- @field cTable CTable modules mapped to their count
 --- @field from string the entity name this applies to
 --- @field to string[] array of module slot indexes to the module in that slot
+
+--- @alias CTable {[string]:int}
 
 local function compare_contents(tbl1, tbl2)
     if tbl1 == tbl2 then return true end
@@ -153,20 +154,28 @@ end
 --only 1 type desired
 --multiple module types if:
 --  amounts can be matched from contents to desired
+---@param contents ItemCountWithQuality[]
+---@param desired any
+---@param desired_count any
+---@param upgrade_planner LuaItemCommon
+---@return LuaItemCommon?
 local function create_upgrade_planner(contents, desired, desired_count, upgrade_planner)
     if desired_count == 0 or table_size(contents) == 0 then return end
     if desired_count == 1 then
         local from = {type = "item", name = ""}
         local to = {type = "item", name = next(desired)}
         local i = 0
-        for name, _ in pairs(contents) do
-            if name ~= to.name then
+        for _, info in pairs(contents) do
+            if info.name ~= to.name then
                 i = i + 1
-                from.name = name
+                from.name = info.name
                 upgrade_planner.set_mapper(i, "from", from)
                 upgrade_planner.set_mapper(i, "to", to)
             end
         end
+        -- Fill empty slots too
+        i = i + 1
+        upgrade_planner.set_mapper(i, "to", to)
         if i > 0 then
             return upgrade_planner
         end
@@ -207,6 +216,10 @@ local function create_upgrade_planner(contents, desired, desired_count, upgrade_
     end
 end
 
+--- @param entity LuaEntity
+--- @param modules string[] List of modules to set it to
+--- @param desired CTable
+--- @param player LuaPlayer
 local function create_request_proxy(entity, modules, desired, proxies, player, create_entity, upgrade_planner)
     if entity.type == "entity-ghost" then
         entity.item_requests = desired
@@ -218,137 +231,66 @@ local function create_request_proxy(entity, modules, desired, proxies, player, c
         return proxies
     end
 
-    local contents = module_inventory.get_contents()
-    local same = compare_contents(desired, contents)
-    local desired_count = table_size(desired)
-    local needs_sorting = desired_count > 1
-
-    if same then
-        if needs_sorting then
-            sort_modules(entity, modules, desired)
-        end
-        return proxies
-    end
-
-    local missing = {}
-    local planner = create_upgrade_planner(contents, desired, desired_count, upgrade_planner)
-    if planner then
-        --print_planner(planner)
-        entity.surface.upgrade_area{area = entity.bounding_box, force = player.force, player = player, item = planner, skip_fog_of_war = false}
-        planner.clear_upgrade_item()
-        missing = desired
-        local ghost = create_entity{
-            name = "item-request-proxy",
-            position = entity.position,
-            force = entity.force,
-            target = entity,
-            modules = missing,
-            raise_built = true
-        }
-        --print_planner(planner)
-        local to_add = table_size(modules) - module_inventory.get_item_count()
-        local irp
-        if desired_count > 1 or to_add > 0 then
-            irp = entity.surface.find_entity("item-request-proxy", entity.position)
-        end
-        if to_add > 0 and desired_count == 1 and irp then
-            --find created proxy and change item requests
-            local to = {type = "item", name = next(desired)}
-            local requests = irp.item_requests
-            requests[to.name] = desired[to.name] - (contents[to.name] or 0)
-            irp.item_requests = requests
-            return proxies
-        end
-        if to_add == 0 then
-            if irp and needs_sorting then
-                script.register_on_object_destroyed(irp)
-                proxies[irp.unit_number] = {modules = modules, cTable = desired, target = entity}
-            end
-            return proxies
-        end
-    end
-
-    --local surplus = {}
-    local changed
-    local diff
-    local chest = false
-    --Drop all modules and done
-    if desired_count == 0 then
-        for name, count in pairs(contents) do
-            chest = drop_module(entity, name, count, module_inventory, chest, create_entity)
-        end
-        if chest and chest.valid then
-            if player and player.valid then
-                chest.order_deconstruction(chest.force, player)
-            else
-                chest.order_deconstruction(chest.force)
-            end
-        end
-        return proxies
-    end
     --Request all modules and done
-    if not next(contents) then
-        missing = desired
-        local ghost = create_entity{
-            name = "item-request-proxy",
-            position = entity.position,
-            force = entity.force,
-            target = entity,
-            modules = missing,
-            raise_built = true
-        }
-        if ghost and needs_sorting then
-            script.register_on_object_destroyed(ghost)
-            proxies[ghost.unit_number] = {modules = modules, cTable = desired, target = entity}
+    local bpthing = {}
+    local removal_plan = {}
+    for i = 1, #module_inventory do
+        local stack = module_inventory[i]
+        local target = modules[i]
+        local need_to_remove = false
+        local need_to_add = target ~= nil
+        if stack.valid_for_read then
+            -- If it's already the target module, then do nothing
+            if stack.name == target then -- TODO also check the quality
+                need_to_add = false
+            else
+                need_to_remove = true
+            end
         end
+
+        if need_to_add then
+            bpthing[i] = {
+                id = { name = target, },
+                items = {
+                    in_inventory = {{
+                        inventory = defines.inventory.assembling_machine_modules, -- XXX TODO get the correct type from the target
+                        stack = i - 1,
+                        count = 1,
+                    }}
+                }
+            }
+        end
+        if need_to_remove then
+            removal_plan[i] = {
+                id = { name = stack.name, },
+                items = {
+                    in_inventory = {{
+                        inventory = defines.inventory.assembling_machine_modules, -- XXX TODO get the correct type from the target
+                        stack = i - 1,
+                        count = stack.count,
+                    }}
+                }
+            }
+        end
+        
+    end
+    if next(bpthing) == nil and next(removal_plan) == nil then
         return proxies
     end
-    for name, count in pairs(desired) do
-        diff = (contents[name] or 0) - count -- >0: drop, < 0 missing
-        contents[name] = nil
-        if diff < 0 then
-            missing[name] = -1 * diff
-        elseif diff > 0 then
-            chest = drop_module(entity, name, diff, module_inventory, chest, create_entity)
-            --surplus[name] = diff
-        end
+
+    create_info = {
+        name = "item-request-proxy",
+        position = entity.position,
+        force = entity.force,
+        target = entity,
+        modules = bpthing,
+        raise_built = true
+    }
+    if next(removal_plan) ~= nil then
+        create_info.removal_plan = removal_plan
     end
-    for name, count in pairs(contents) do
-        diff = count - (desired[name] or 0) -- >0: drop, < 0 missing
-        --assert(not missing[name] and not surplus[name])
-        if diff < 0 then
-            missing[name] = -1 * diff
-        elseif diff > 0 then
-            chest = drop_module(entity, name, diff, module_inventory, chest, create_entity)
-            --surplus[name] = diff
-            changed = true
-        end
-    end
-    if chest and chest.valid then
-        if player and player.valid then
-            chest.order_deconstruction(chest.force, player)
-        else
-            chest.order_deconstruction(chest.force)
-        end
-    end
-    if changed then
-        contents = module_inventory.get_contents()
-        same = compare_contents(desired, contents)
-    end
-    if not same and next(missing) then
-        local ghost = create_entity{
-            name = "item-request-proxy",
-            position = entity.position,
-            force = entity.force,
-            target = entity,
-            modules = missing,
-            raise_built = true
-        }
-        if ghost and needs_sorting then
-            script.register_on_object_destroyed(ghost)
-            proxies[ghost.unit_number] = {modules = modules, cTable = desired, target = entity}
-        end
-    end
+
+    create_entity(create_info)
     return proxies
 end
 
@@ -393,13 +335,24 @@ end
 --- @param recipe LuaRecipe
 --- @param modules table
 local function modules_allowed(recipe, modules)
-    -- Default allow all module types
-    if #recipe.prototype.allowed_module_categories == 0 then return true end
-
-    for module, _ in pairs(modules) do
-        local category = prototypes.item[module].category
-        if not recipe.prototype.allowed_module_categories[category] then
-            return false
+    -- TODO really not sure what the checks here should be
+    -- TODO also add the entity in this check?
+    -- TODO may want to cache this result?
+    if recipe.prototype.allowed_module_categories then
+        for module, _ in pairs(modules) do
+            local category = prototypes.item[module].category
+            if not recipe.prototype.allowed_module_categories[category] then
+                return false
+            end
+        end
+    end
+    if recipe.prototype.allowed_effects then
+        for module, _ in pairs(modules) do
+            for effect_name, effect_num in pairs(prototypes.item[module].module_effects) do
+                if effect_num > 0 and not recipe.prototype.allowed_effects[effect_name] then
+                    return false
+                end
+            end
         end
     end
     return true
@@ -470,7 +423,6 @@ local function on_player_selected_area(e)
 
             ent_type = ent_prop("type")
             local recipe = ent_type == "assembling-machine" and entity.get_recipe()
-            recipe = recipe and recipe.name
             local entity_config = nil
             local cTable = nil
             if recipe then
