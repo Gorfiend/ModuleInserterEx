@@ -125,23 +125,31 @@ local function import_config(player, bp_string)
 end
 
 local mi_gui = {}
-
 mi_gui.templates = {
     assembler_button = function(assembler)
-        return {type = "choose-elem-button", name = "assembler", style = "slot_button", style_mods = { right_margin = 6},
-                actions = {on_elem_changed = {gui = "main", action = "choose_assembler"}},
-                elem_type = "entity", elem_filters = {{filter = "name", name = storage.module_entities}},
-                entity = assembler,
-                tooltip = assembler and prototypes.entity[assembler].localised_name or {"module-inserter-choose-assembler"}
+        return {
+            type = "choose-elem-button",
+            name = "assembler",
+            style = "slot_button",
+            style_mods = { right_margin = 6 },
+            handler = { [defines.events.on_gui_elem_changed] = mi_gui.handlers.main.choose_assembler },
+            elem_type = "entity",
+            elem_filters = { { filter = "name", name = storage.module_entities } },
+            entity = assembler,
+            tooltip = assembler and prototypes.entity[assembler].localised_name or { "module-inserter-choose-assembler" }
         }
     end,
     module_button = function(index, module, assembler)
-        return {type = "choose-elem-button", style = "slot_button", name = index,
-                actions = {on_elem_changed = {gui = "main", action = "choose_module"}},
-                elem_type = "item", elem_filters = {{filter = "type", type = "module"}},
-                item = module,
-                locked = not assembler and  true or false,
-                tooltip = module and prototypes.item[module].localised_name or {"module-inserter-choose-module"}
+        return {
+            type = "choose-elem-button",
+            style = "slot_button",
+            name = index,
+            handler = { [defines.events.on_gui_elem_changed] = mi_gui.handlers.main.choose_module },
+            elem_type = "item",
+            elem_filters = { { filter = "type", type = "module" } },
+            item = module,
+            locked = not assembler and true or false,
+            tooltip = module and prototypes.item[module].localised_name or { "module-inserter-choose-module" }
         }
     end,
     config_row = function(index, config)
@@ -149,16 +157,27 @@ mi_gui.templates = {
         local assembler = config.from
         local slots = assembler and storage.nameToSlots[assembler] or 2
         local modules = config.to or {}
-        local row = {type = "flow", direction = "horizontal", name = index, style_mods = {horizontal_spacing = 0}, children = {
-                        mi_gui.templates.assembler_button(assembler),
-                        {type = "table", column_count = 10, name = "modules",  children = {},
-                            style_mods = {
-                                margin=0, padding = 0,
-                                horizontal_spacing = 0,
-                                vertical_spacing = 0
-                            }
-                        }
-                    }}
+        local row = {
+            type = "flow",
+            direction = "horizontal",
+            name = index,
+            style_mods = { horizontal_spacing = 0 },
+            children = {
+                mi_gui.templates.assembler_button(assembler),
+                {
+                    type = "table",
+                    column_count = 10,
+                    name = "modules",
+                    children = {},
+                    style_mods = {
+                        margin = 0,
+                        padding = 0,
+                        horizontal_spacing = 0,
+                        vertical_spacing = 0
+                    }
+                }
+            }
+        }
         for m = 1, slots do
             row.children[2].children[m] = mi_gui.templates.module_button(m, modules[m], assembler)
         end
@@ -172,58 +191,93 @@ mi_gui.templates = {
         return config_rows
     end,
     preset_row = function(name, selected)
-        return {type = "flow", direction = "horizontal", children = {
-                    {type = "button", caption = name,
-                        style = name == selected and "mi_preset_button_selected" or "mi_preset_button",
-                        actions = {on_click = {gui = "preset", action = "load"}},
-                    },
-                    {type = "sprite-button", style = "tool_button", sprite = "utility/export_slot", tooltip = {"module-inserter-export_tt"},
-                        actions = {on_click = {gui = "preset", action = "export"}},
-                    },
-                    {type = "sprite-button", style = "tool_button_red", sprite = "utility/trash",
-                        actions = {on_click = {gui = "preset", action = "delete"}},
-                    },
-                }}
+        return {
+            type = "flow",
+            direction = "horizontal",
+            children = {
+                {
+                    type = "button",
+                    caption = name,
+                    style = name == selected and "mi_preset_button_selected" or "mi_preset_button",
+                    handler = mi_gui.handlers.preset.load,
+                },
+                {
+                    type = "sprite-button",
+                    style = "tool_button",
+                    sprite = "utility/export_slot",
+                    tooltip = { "module-inserter-export_tt" },
+                    handler = mi_gui.handlers.preset.export,
+                },
+                {
+                    type = "sprite-button",
+                    style = "tool_button_red",
+                    sprite = "utility/trash",
+                    handler = mi_gui.handlers.preset.delete,
+                },
+            }
+        }
     end,
     preset_rows = function(presets, selected)
         local preset_rows = {}
         local i = 1
         for name, _ in pairs(presets) do
             preset_rows[i] = mi_gui.templates.preset_row(name, selected)
-            i = i +1
+            i = i + 1
         end
         return preset_rows
     end,
     pushers = {
-        horizontal = {type = "empty-widget", style_mods = {horizontally_stretchable = true}},
-        vertical = {type = "empty-widget", style_mods = {vertically_stretchable = true}}
+        horizontal = { type = "empty-widget", style_mods = { horizontally_stretchable = true } },
+        vertical = { type = "empty-widget", style_mods = { vertically_stretchable = true } }
     },
     import_export_window = function(bp_string)
-        local caption = bp_string and {"gui.export-to-string"} or {"gui-blueprint-library.import-string"}
-        local button_caption = bp_string and {"gui.close"} or {"gui-blueprint-library.import"}
-        local button_handler = bp_string and "close_button" or "import_button"
-        return {type = "frame", style = "inner_frame_in_outer_frame", direction = "vertical",
-                ref = {"import", "window"},
-                children = {
-                {type = "flow", ref = {"import", "titlebar_flow"},
+        local caption = bp_string and { "gui.export-to-string" } or { "gui-blueprint-library.import-string" }
+        local button_caption = bp_string and { "gui.close" } or { "gui-blueprint-library.import" }
+        local button_handler = bp_string and mi_gui.handlers.import.close_button or mi_gui.handlers.import.import_button
+        return {
+            type = "frame",
+            style = "flib_shallow_frame_in_shallow_frame", -- TODO probably change this style
+            direction = "vertical",
+            ref = { "import", "window" },
+            children = {
+                {
+                    type = "flow",
+                    ref = { "import", "titlebar_flow" },
                     children = {
-                    {type = "label", style = "frame_title", caption = caption, elem_mods = {ignored_by_interaction = true}},
-                    {type = "empty-widget", style = "flib_titlebar_drag_handle", elem_mods = {ignored_by_interaction = true}},
-                    {type = "sprite-button", style = "frame_action_button",
-                        sprite = "utility/close", hovered_sprite = "utility/close_black", clicked_sprite = "utility/close_black",
-                        actions = {on_click = {gui = "import", action = "close_button"}},
-                    }
-                }},
-                {type = "text-box", text = bp_string, elem_mods = {word_wrap = true}, style_mods = {width=400, height = 250},
-                    ref = {"import", "textbox"},
-                },
-                {type = "flow", direction = "horizontal", children={
-                    mi_gui.templates.pushers.horizontal,
-                        {type = "button", style = "dialog_button", caption = button_caption,
-                            actions = {on_click = {gui = "import", action = button_handler}},
+                        { type = "label",        style = "frame_title",               caption = caption,                            elem_mods = { ignored_by_interaction = true } },
+                        { type = "empty-widget", style = "flib_titlebar_drag_handle", elem_mods = { ignored_by_interaction = true } },
+                        {
+                            type = "sprite-button",
+                            style = "frame_action_button",
+                            sprite = "utility/close",
+                            hovered_sprite = "utility/close_black",
+                            clicked_sprite = "utility/close_black",
+                            handler = mi_gui.handlers.import.close_button,
                         }
-                }}
-            }}
+                    }
+                },
+                {
+                    type = "text-box",
+                    text = bp_string,
+                    elem_mods = { word_wrap = true },
+                    style_mods = { width = 400, height = 250 },
+                    ref = { "import", "textbox" },
+                },
+                {
+                    type = "flow",
+                    direction = "horizontal",
+                    children = {
+                        mi_gui.templates.pushers.horizontal,
+                        {
+                            type = "button",
+                            style = "dialog_button",
+                            caption = button_caption,
+                            handler = button_handler,
+                        }
+                    }
+                }
+            }
+        }
     end,
 }
 
@@ -237,7 +291,7 @@ function mi_gui.update_main_button(player)
         gui.add(button_flow, {{
             type = "sprite-button",
             name = "module_inserter_config_button",
-            handler = mi_gui.toggle,
+            handler = mi_gui.handlers.mod_gui_button.toggle,
             style = style,
             sprite = "technology/modules"
         }})
@@ -267,7 +321,7 @@ function mi_gui.create(player_index)
             type = "frame",
             style_mods = { maximal_height = 650 },
             direction = "vertical",
-            actions = { on_closed = { gui = "main", action = "close_window" } },
+            handler = { [defines.events.on_gui_closed] = mi_gui.handlers.main.close_window },
             name = "main_window",
             children = {
                 {
@@ -281,7 +335,7 @@ function mi_gui.create(player_index)
                             style = "frame_action_button_red",
                             sprite = "utility/trash",
                             tooltip = { "module-inserter-destroy" },
-                            actions = { on_click = { gui = "main", action = "destroy_tool" }, }
+                            handler = mi_gui.handlers.main.destroy_tool,
                         },
                         {
                             type = "sprite-button",
@@ -291,7 +345,7 @@ function mi_gui.create(player_index)
                             hovered_sprite = "mi_pin_black",
                             clicked_sprite = "mi_pin_black",
                             name = "pin_button",
-                            actions = { on_click = { gui = "main", action = "pin" } },
+                            handler = mi_gui.handlers.main.pin,
                         },
                         {
                             type = "sprite-button",
@@ -299,7 +353,7 @@ function mi_gui.create(player_index)
                             sprite = "utility/close",
                             hovered_sprite = "utility/close_black",
                             clicked_sprite = "utility/close_black",
-                            actions = { on_click = { gui = "main", action = "close" } }
+                            handler = mi_gui.handlers.main.close,
                         }
                     }
                 },
@@ -323,7 +377,7 @@ function mi_gui.create(player_index)
                                             type = "sprite-button",
                                             style = "tool_button_green",
                                             style_mods = { padding = 0 },
-                                            actions = { on_click = { gui = "main", action = "apply_changes" } },
+                                            handler = mi_gui.handlers.main.apply_changes,
                                             sprite = "utility/check_mark_white",
                                             tooltip = { "module-inserter-config-button-apply" }
                                         },
@@ -332,7 +386,7 @@ function mi_gui.create(player_index)
                                             style = "tool_button_red",
                                             sprite = "utility/trash",
                                             tooltip = { "module-inserter-config-button-clear-all" },
-                                            actions = { on_click = { gui = "main", action = "clear_all" } },
+                                            handler = mi_gui.handlers.main.clear_all,
                                         },
                                     }
                                 },
@@ -375,14 +429,14 @@ function mi_gui.create(player_index)
                                             style = "tool_button",
                                             sprite = "mi_import_string",
                                             tooltip = { "module-inserter-import_tt" },
-                                            actions = { on_click = { gui = "presets", action = "import" } },
+                                            handler = mi_gui.handlers.presets.import,
                                         },
                                         {
                                             type = "sprite-button",
                                             style = "tool_button",
                                             sprite = "utility/export_slot",
                                             tooltip = { "module-inserter-export_tt" },
-                                            actions = { on_click = { gui = "presets", action = "export" } },
+                                            handler = mi_gui.handlers.presets.export,
                                         },
                                     }
                                 },
@@ -400,14 +454,14 @@ function mi_gui.create(player_index)
                                                     text = pdata.last_preset,
                                                     style_mods = { width = 150 },
                                                     name = "textfield",
-                                                    actions = { on_click = { gui = "presets", action = "textfield" } },
+                                                    handler = { [defines.events.on_gui_click] = mi_gui.handlers.presets.textfield },
                                                 },
                                                 mi_gui.templates.pushers.horizontal,
                                                 {
                                                     type = "button",
                                                     caption = { "gui-save-game.save" },
                                                     style = "module-inserter-small-button",
-                                                    actions = { on_click = { gui = "presets", action = "save" } }
+                                                    handler = mi_gui.handlers.presets.save,
                                                 },
                                             }
                                         },
@@ -669,7 +723,7 @@ function mi_gui.close(e)
     end
 end
 
---- @param e EventInfo
+--- @param e MiEventInfo
 function mi_gui.toggle(e)
     if e.pdata.gui_open then
         mi_gui.close(e)
@@ -679,7 +733,11 @@ function mi_gui.toggle(e)
 end
 
 mi_gui.handlers = {
+    mod_gui_button = {
+        toggle = mi_gui.toggle
+    },
     main = {
+        --- @param e MiEventInfo
         apply_changes = function(e, keep_open)
             e.pdata.config = table.deep_copy(e.pdata.config_tmp)
             local config_by_entity = {}
@@ -689,7 +747,6 @@ mi_gui.handlers = {
                     config_by_entity[config.from][table_size(config_by_entity[config.from]) + 1] = {
                         to = config.to,
                         cTable = config.cTable,
-                        limitations = config.limitations
                     }
                 end
             end
@@ -699,6 +756,7 @@ mi_gui.handlers = {
                 mi_gui.close(e)
             end
         end,
+        --- @param e MiEventInfo
         clear_all = function(e)
             local tmp = {}
             for i = 1, START_SIZE do
@@ -707,14 +765,17 @@ mi_gui.handlers = {
             e.pdata.config_tmp = tmp
             mi_gui.update_contents(e.pdata)
         end,
+        --- @param e MiEventInfo
         close_window = function(e)
             if not e.pdata.pinned then
                 mi_gui.close(e)
             end
         end,
+        --- @param e MiEventInfo
         close = function(e)
             mi_gui.close(e)
         end,
+        --- @param e MiEventInfo
         pin = function(e)
             local pdata = e.pdata
             local pin = pdata.gui.main.pin_button
@@ -732,14 +793,16 @@ mi_gui.handlers = {
                 e.player.opened = nil
             end
         end,
+        --- @param e MiEventInfo
         choose_assembler = function(e)
             local pdata = e.pdata
             local config_tmp = pdata.config_tmp
             local config_rows = pdata.gui.main.config_rows
             if not (config_rows and config_rows.valid) then return end
-            local index = tonumber(e.element.parent.name)
+            local index = tonumber(e.event.element.parent.name)
             if not index then return end
-            local element = e.element
+            local element = e.event.element
+            if not element then return end
             local elem_value = element.elem_value
 
             if elem_value == config_tmp[index].from then
@@ -765,21 +828,25 @@ mi_gui.handlers = {
             end
         end,
 
+        --- @param e MiEventInfo
         choose_module = function(e)
+            local element = e.event.element
+            if not element then return end
             local config_tmp = e.pdata.config_tmp
+            if not config_tmp then return end
             local config_rows = e.pdata.gui.main.config_rows
             if not (config_rows and config_rows.valid) then return end
-            local index = tonumber(e.element.parent.parent.name)
-            local slot = tonumber(e.element.name)
+            local index = tonumber(element.parent.parent.name)
+            local slot = tonumber(element.name)
             if not slot then return end
             local config = config_tmp[index]
 
             local entity_proto = config.from and prototypes.entity[config.from]
             if not entity_proto then return end
 
-            config.to[slot] = e.element.elem_value
-            if e.element.elem_value then
-                local proto = prototypes.item[e.element.elem_value]
+            config.to[slot] = element.elem_value --[[@as string]]
+            if element.elem_value then
+                local proto = prototypes.item[element.elem_value]
                 local success = true
                 if proto and config.from then
                     local itemEffects = proto.module_effects
@@ -789,7 +856,7 @@ mi_gui.handlers = {
                                 success = false
                                 e.player.print({"inventory-restriction.cant-insert-module", proto.localised_name, entity_proto.localised_name})
                                 config.to[slot] = nil
-                                e.element.elem_value = nil
+                                element.elem_value = nil
                                 break
                             end
                         end
@@ -800,33 +867,28 @@ mi_gui.handlers = {
                 end
 
             end
-            if slot == 1 and e.element.elem_value and e.player.mod_settings["module_inserter_fill_all"].value then
+            if slot == 1 and element.elem_value and e.player.mod_settings["module_inserter_fill_all"].value then
                 for i = 2, entity_proto.module_inventory_size do
-                    config.to[i] = config.to[i] or e.element.elem_value
+                    config.to[i] = config.to[i] or element.elem_value
                 end
             end
             mi_gui.update_modules(config_rows.children[index], entity_proto.module_inventory_size, config.to)
             local cTable = {}
-            local prototype, limitations
-            config.limitations = false
             for _, module in pairs(config.to) do
                 if module then
-                    prototype = prototypes.item[module]
-                    limitations = prototype and prototype.limitations
-                    if limitations and next(limitations) then
-                        config.limitations = true
-                    end
                     cTable[module] = (cTable[module] or 0) + 1
                 end
             end
             config.cTable = cTable
         end,
+        --- @param e MiEventInfo
         destroy_tool = function(e)
             e.player.get_main_inventory().remove{name = "module-inserter", count = 1}
             mi_gui.close(e)
         end
     },
     presets = {
+        --- @param e MiEventInfo
         save = function(e)
             local textfield = e.pdata.gui.presets.textfield
             local name = textfield.text
@@ -834,10 +896,12 @@ mi_gui.handlers = {
                 mi_gui.update_presets(e.pdata, name)
             end
         end,
+        --- @param e MiEventInfo
         textfield = function(e)
-            e.element.select_all()
-            e.element.focus()
+            e.event.element.select_all()
+            e.event.element.focus()
         end,
+        --- @param e MiEventInfo
         import = function(e)
             local stack = e.player.cursor_stack
             if stack and stack.valid and stack.valid_for_read and (stack.type == "blueprint" or stack.type == "blueprint-book") then
@@ -860,10 +924,11 @@ mi_gui.handlers = {
                 mi_gui.create_import_window(e.pdata, e.player)
             end
         end,
+        --- @param e MiEventInfo
         export = function(e)
             local text = export_config(e.player, e.pdata.pstorage)
             if not text then return end
-            if e.shift then
+            if e.event.shift then
                 local stack = e.player.cursor_stack
                 if stack.valid_for_read then
                     e.player.print("Click with an empty cursor")
@@ -881,6 +946,7 @@ mi_gui.handlers = {
         end
     },
     preset = {
+        --- @param e MiEventInfo
         load = function(e)
             local name = e.element.caption
             local pdata = e.pdata
@@ -915,6 +981,7 @@ mi_gui.handlers = {
             --mi_gui.close(player, pdata)
             e.player.print{"module-inserter-storage-loaded", name}
         end,
+        --- @param e MiEventInfo
         export = function(e)
             local pdata = e.pdata
             local name = e.element.parent.children[1].caption
@@ -942,6 +1009,7 @@ mi_gui.handlers = {
                 mi_gui.create_import_window(pdata, e.player, text)
             end
         end,
+        --- @param e MiEventInfo
         delete = function(e)
             local name = e.element.parent.children[1].caption
             local pdata = e.pdata
@@ -951,6 +1019,7 @@ mi_gui.handlers = {
         end
     },
     import = {
+        --- @param e MiEventInfo
         import_button = function(e)
             local player = e.player
             local pdata = e.pdata
@@ -970,6 +1039,7 @@ mi_gui.handlers = {
             end
             mi_gui.handlers.import.close_button(e)
         end,
+        --- @param e MiEventInfo
         close_button = function(e)
             local window = e.pdata.gui.import.window
             window.destroy()

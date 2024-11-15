@@ -18,8 +18,8 @@ storage = {}
 
 --- @class PlayerConfig
 --- @field last_preset string
---- @field config table
---- @field config_tmp table?
+--- @field config ModuleConfig[]
+--- @field config_tmp ModuleConfig[]?
 --- @field pstorage table
 --- @field gui table
 --- @field gui_open boolean
@@ -31,10 +31,15 @@ storage = {}
 
 --- @class ModuleSpecification
 
---- @class EventInfo
+--- @class MiEventInfo
 --- @field event flib.GuiEventData
 --- @field player LuaPlayer
 --- @field pdata PlayerConfig
+
+--- @class ModuleConfig
+--- @field cTable {[string]:int} modules mapped to their count
+--- @field from string the entity name this applies to
+--- @field to string[] array of module slot indexes to the module in that slot
 
 local function compare_contents(tbl1, tbl2)
     if tbl1 == tbl2 then return true end
@@ -405,6 +410,7 @@ local function on_player_selected_area(e)
         local player_index = e.player_index
         if e.item ~= "module-inserter" or not player_index then return end
         local player = game.get_player(player_index)
+        if not player then return end
         local pdata = storage._pdata[player_index]
         local config = pdata.config_by_entity
         if not config then
@@ -450,16 +456,9 @@ local function on_player_selected_area(e)
                             for m = ent_slots + 1, #e_config.to do
                                 e_config.to[m] = nil
                             end
-                            e_config.limitations = false
                             e_config.cTable = {}
-                            local prototype, limitations
                             for _, module in pairs(e_config.to) do
                                 if module then
-                                    prototype = prototypes.item[module]
-                                    limitations = prototype and prototype.limitations
-                                    if limitations and next(limitations) then
-                                        e_config.limitations = true
-                                    end
                                     e_config.cTable[module] = (e_config.cTable[module] or 0) + 1
                                 end
                             end
@@ -476,18 +475,12 @@ local function on_player_selected_area(e)
             local cTable = nil
             if recipe then
                 for _, e_config in pairs(entity_configs) do
-                    if e_config.limitations then
-                        if modules_allowed(recipe, e_config.cTable) then
-                            entity_config = e_config
-                            cTable = e_config.cTable
-                            break
-                        else
-                            message = "item-limitation.production-module-usable-only-on-intermediates"
-                        end
-                    else
+                    if modules_allowed(recipe, e_config.cTable) then
                         entity_config = e_config
                         cTable = e_config.cTable
                         break
+                    else
+                        message = "item-limitation.production-module-usable-only-on-intermediates"
                     end
                 end
             else
@@ -606,15 +599,11 @@ local function remove_invalid_items()
                 config.to = {}
                 config.cTable = {}
             end
-            config.limitations = nil
             for k, m in pairs(config.to) do
                 if m and not items[m] then
                     config.to[k] = nil
                     config.cTable[m] = nil
                     removed_modules[config.from] = true
-                end
-                if storage.restricted_modules[m] then
-                    config.limitations = true
                 end
             end
         end
@@ -806,9 +795,18 @@ script.on_event(defines.events.on_player_reverse_selected_area, on_player_revers
 
 gui.handle_events()
 
-gui.add_handlers({
-    mod_gui_button = mi_gui.toggle
-}, function (e, handler)
+--- @return table<string, fun(e: flib.GuiEventData)>
+local function make_handler_table()
+    handler_table = {}
+    for group_name, group in pairs(mi_gui.handlers) do
+        for name, func in pairs(group) do
+            handler_table[group_name .. "_" .. name] = func
+        end
+    end
+    return handler_table
+end
+
+gui.add_handlers(make_handler_table(), function (e, handler)
     ev = {
         event = e,
         player = game.get_player(e.player_index),
