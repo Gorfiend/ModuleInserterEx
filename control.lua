@@ -1,4 +1,4 @@
-local gui = require("__flib__.gui-beta")
+local gui = require("__flib__.gui")
 local mod_gui = require("__core__.lualib.mod-gui")
 local migration = require("__flib__.migration")
 local mi_gui = require("scripts.gui")
@@ -6,6 +6,27 @@ local table = require("__flib__.table")
 
 local lib = require("__ModuleInserterEx__/lib_control")
 local debugDump = lib.debugDump
+
+-- GlobalData
+--- @class GlobalData
+--- @field proxies table
+--- @field to_create table
+--- @field nameToSlots {[string]:int} Name of all entities mapped to their module slot count
+--- @field module_entities string[] all entities that have valid module slots
+--- @field _pdata {[int]:PlayerConfig}
+storage = {}
+
+--- @class PlayerConfig
+--- @field last_preset string
+--- @field config table
+--- @field storage table
+--- @field gui table
+--- @field config_by_entity ConfigByEntity
+
+
+--- @alias ConfigByEntity {[string]: ModuleSpecification}
+
+--- @class ModuleSpecification
 
 local function compare_contents(tbl1, tbl2)
     if tbl1 == tbl2 then return true end
@@ -355,10 +376,15 @@ local function conditional_events(check)
     end
 end
 
+--- @param recipe LuaRecipe
+--- @param modules table
 local function modules_allowed(recipe, modules)
-    local restricted_modules = storage.restricted_modules
+    -- Default allow all module types
+    if #recipe.prototype.allowed_module_categories == 0 then return true end
+
     for module, _ in pairs(modules) do
-        if restricted_modules[module] and not restricted_modules[module][recipe] then
+        local category = prototypes.item[module].category
+        if not recipe.prototype.allowed_module_categories[category] then
             return false
         end
     end
@@ -556,19 +582,6 @@ local function create_lookup_tables()
             i = i + 1
         end
     end
-    storage.restricted_modules = {}
-    local limitations
-    for name, module in pairs(prototypes.item) do
-        if module.type == "module" then
-            limitations = module.limitations
-            if limitations and next(limitations) then
-                storage.restricted_modules[name] = {}
-                for _, recipe in pairs(limitations) do
-                    storage.restricted_modules[name][recipe] = true
-                end
-            end
-        end
-    end
 end
 
 local function remove_invalid_items()
@@ -618,7 +631,6 @@ local function init_global()
     storage.proxies = storage.proxies or {}
     storage.to_create = storage.to_create or {}
     storage.nameToSlots = storage.nameToSlots or {}
-    storage.restricted_modules = storage.restricted_modules or {}
     storage._pdata = storage._pdata or {}
 end
 
@@ -780,20 +792,26 @@ script.on_event(defines.events.on_player_selected_area, on_player_selected_area)
 script.on_event(defines.events.on_player_alt_selected_area, on_player_alt_selected_area)
 script.on_event(defines.events.on_player_reverse_selected_area, on_player_reverse_selected_area)
 
-gui.hook_events(function(e)
-    local msg = gui.read_action(e)
-    if msg then
-        e.player = game.get_player(e.player_index)
-        e.pdata = storage._pdata[e.player_index]
-        local gui_handler = mi_gui.handlers[msg.gui]
-        local handler = gui_handler and gui_handler[msg.action]
-        if handler then
-            handler(e)
-        else
-            e.player.print("Unhandled gui event: " .. serpent.line(msg))
-        end
-    end
-end)
+gui.handle_events()
+
+-- XXX TODO need to update this somehow...
+-- gui.add_handlers(
+--     mi_gui.handlers
+-- )
+-- gui.hook_events(function(e)
+--     local msg = gui.read_action(e)
+--     if msg then
+--         e.player = game.get_player(e.player_index)
+--         e.pdata = storage._pdata[e.player_index]
+--         local gui_handler = mi_gui.handlers[msg.gui]
+--         local handler = gui_handler and gui_handler[msg.action]
+--         if handler then
+--             handler(e)
+--         else
+--             e.player.print("Unhandled gui event: " .. serpent.line(msg))
+--         end
+--     end
+-- end)
 
 script.on_event(defines.events.on_player_created, function(e)
     init_player(e.player_index)

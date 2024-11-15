@@ -1,7 +1,7 @@
 local START_SIZE = 10
 local mod_gui = require("__core__.lualib.mod-gui")
 local table = require("__flib__.table")
-local gui = require("__flib__.gui-beta")
+local gui = require("__flib__.gui")
 
 local function export_config(player, config_data, name)
     local status, result = pcall(function()
@@ -132,7 +132,7 @@ mi_gui.templates = {
                 actions = {on_elem_changed = {gui = "main", action = "choose_assembler"}},
                 elem_type = "entity", elem_filters = {{filter = "name", name = storage.module_entities}},
                 entity = assembler,
-                tooltip = assembler and game.entity_prototypes[assembler].localised_name or {"module-inserter-choose-assembler"}
+                tooltip = assembler and prototypes.entity[assembler].localised_name or {"module-inserter-choose-assembler"}
         }
     end,
     module_button = function(index, module, assembler)
@@ -141,7 +141,7 @@ mi_gui.templates = {
                 elem_type = "item", elem_filters = {{filter = "type", type = "module"}},
                 item = module,
                 locked = not assembler and  true or false,
-                tooltip = module and game.item_prototypes[module].localised_name or {"module-inserter-choose-module"}
+                tooltip = module and prototypes.item[module].localised_name or {"module-inserter-choose-module"}
         }
     end,
     config_row = function(index, config)
@@ -396,6 +396,7 @@ function mi_gui.extend_rows(config_rows, c, config_tmp)
     end
 end
 
+---@param slots int
 function mi_gui.update_modules(config, slots, modules)
     modules = modules or {}
     slots = slots or 2
@@ -422,13 +423,13 @@ function mi_gui.update_modules(config, slots, modules)
             child.visible = true
             child.locked = false
             child.elem_value = modules[i]
-            child.tooltip = modules[i] and game.item_prototypes[modules[i]].localised_name or {"module-inserter-choose-module"}
+            child.tooltip = modules[i] and prototypes.item[modules[i]].localised_name or {"module-inserter-choose-module"}
         end
     else
         for i = 1, module_btns do
             local child = config.modules.children[i]
             child.elem_value = modules[i]
-            child.tooltip = modules[i] and game.item_prototypes[modules[i]].localised_name or {"module-inserter-choose-module"}
+            child.tooltip = modules[i] and prototypes.item[modules[i]].localised_name or {"module-inserter-choose-module"}
             child.locked = not assembler and true or false
             child.visible = i <= slots
         end
@@ -463,9 +464,9 @@ function mi_gui.update_contents(pdata, clear)
     for _, config in pairs(config_tmp) do
         if config.from then
             assembler = config.from
-            assembler_proto = assembler and game.entity_prototypes[assembler]
+            assembler_proto = assembler and prototypes.entity[assembler]
             tooltip = assembler_proto and assembler_proto.localised_name
-            slots = config.from and storage.nameToSlots[config.from]
+            slots = storage.nameToSlots[config.from]
             modules = config.to
         else
             assembler, tooltip, slots, modules = nil, nil, nil, nil
@@ -657,7 +658,7 @@ mi_gui.handlers = {
                 return
             end
 
-            element.tooltip = game.entity_prototypes[elem_value].localised_name
+            element.tooltip = prototypes.entity[elem_value].localised_name
             config_tmp[index].from = elem_value
 
             mi_gui.update_modules(config_rows.children[index], storage.nameToSlots[elem_value])
@@ -675,12 +676,12 @@ mi_gui.handlers = {
             if not slot then return end
             local config = config_tmp[index]
 
-            local entity_proto = config.from and game.entity_prototypes[config.from]
+            local entity_proto = config.from and prototypes.entity[config.from]
             if not entity_proto then return end
 
             config.to[slot] = e.element.elem_value
             if e.element.elem_value then
-                local proto = game.item_prototypes[e.element.elem_value]
+                local proto = prototypes.item[e.element.elem_value]
                 local success = true
                 if proto and config.from then
                     local itemEffects = proto.module_effects
@@ -712,7 +713,7 @@ mi_gui.handlers = {
             config.limitations = false
             for _, module in pairs(config.to) do
                 if module then
-                    prototype = game.item_prototypes[module]
+                    prototype = prototypes.item[module]
                     limitations = prototype and prototype.limitations
                     if limitations and next(limitations) then
                         config.limitations = true
