@@ -227,17 +227,17 @@ mi_gui.templates = {
     end,
 }
 
+--- @param player LuaPlayer
 function mi_gui.update_main_button(player)
     local button_flow = mod_gui.get_button_flow(player)
     local button = button_flow.module_inserter_config_button
-    button = button and button.valid and button
     local visible = not player.mod_settings["module_inserter_hide_button"].value
-    local style = player.mod_settings["module_inserter_button_style"].value
-    if not button then
+    local style = player.mod_settings["module_inserter_button_style"].value --[[@as string]]
+    if not button or not button.valid then
         gui.add(button_flow, {{
             type = "sprite-button",
             name = "module_inserter_config_button",
-            actions = {on_click = {gui = "mod_gui_button", action = "toggle"}},
+            handler = mi_gui.toggle,
             style = style,
             sprite = "technology/modules"
         }})
@@ -669,6 +669,7 @@ function mi_gui.close(e)
     end
 end
 
+--- @param e EventInfo
 function mi_gui.toggle(e)
     if e.pdata.gui_open then
         mi_gui.close(e)
@@ -678,9 +679,6 @@ function mi_gui.toggle(e)
 end
 
 mi_gui.handlers = {
-    mod_gui_button = {
-        toggle = mi_gui.toggle
-    },
     main = {
         apply_changes = function(e, keep_open)
             e.pdata.config = table.deep_copy(e.pdata.config_tmp)

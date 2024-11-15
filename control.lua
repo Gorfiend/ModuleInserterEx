@@ -22,6 +22,7 @@ storage = {}
 --- @field config_tmp table?
 --- @field pstorage table
 --- @field gui table
+--- @field gui_open boolean
 --- @field pinned boolean Is the gui pinned
 --- @field config_by_entity ConfigByEntity
 
@@ -29,6 +30,11 @@ storage = {}
 --- @alias ConfigByEntity {[string]: ModuleSpecification}
 
 --- @class ModuleSpecification
+
+--- @class EventInfo
+--- @field event flib.GuiEventData
+--- @field player LuaPlayer
+--- @field pdata PlayerConfig
 
 local function compare_contents(tbl1, tbl2)
     if tbl1 == tbl2 then return true end
@@ -84,6 +90,7 @@ end)
 
 local function get_module_inserter(e)
     local player = game.get_player(e.player_index)
+    if not player then return end
     local inv = player.get_main_inventory()
     local mi = inv.find_item_stack("module-inserter")
     if mi then
@@ -645,6 +652,8 @@ local function init_player(i)
         config_by_entity = pdata.config_by_entity or {},
         pstorage = pdata.pstorage or {},
         gui = pdata.gui or {},
+        gui_open = false,
+        pinned = false,
     }
     mi_gui.update_main_button(game.get_player(i))
     mi_gui.create(i)
@@ -797,24 +806,16 @@ script.on_event(defines.events.on_player_reverse_selected_area, on_player_revers
 
 gui.handle_events()
 
--- XXX TODO need to update this somehow...
--- gui.add_handlers(
---     mi_gui.handlers
--- )
--- gui.hook_events(function(e)
---     local msg = gui.read_action(e)
---     if msg then
---         e.player = game.get_player(e.player_index)
---         e.pdata = storage._pdata[e.player_index]
---         local gui_handler = mi_gui.handlers[msg.gui]
---         local handler = gui_handler and gui_handler[msg.action]
---         if handler then
---             handler(e)
---         else
---             e.player.print("Unhandled gui event: " .. serpent.line(msg))
---         end
---     end
--- end)
+gui.add_handlers({
+    mod_gui_button = mi_gui.toggle
+}, function (e, handler)
+    ev = {
+        event = e,
+        player = game.get_player(e.player_index),
+        pdata = storage._pdata[e.player_index]
+    }
+    handler(ev)
+end)
 
 script.on_event(defines.events.on_player_created, function(e)
     init_player(e.player_index)
