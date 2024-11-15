@@ -19,8 +19,10 @@ storage = {}
 --- @class PlayerConfig
 --- @field last_preset string
 --- @field config table
+--- @field config_tmp table?
 --- @field storage table
 --- @field gui table
+--- @field pinned boolean Is the gui pinned
 --- @field config_by_entity ConfigByEntity
 
 
@@ -640,6 +642,7 @@ local function init_player(i)
     storage._pdata[i] = {
         last_preset = pdata.last_preset or "",
         config = pdata.config or {},
+        config_by_entity = pdata.config_by_entity or {},
         storage = pdata.storage or {},
         gui = pdata.gui or {},
     }

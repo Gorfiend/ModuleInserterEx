@@ -210,7 +210,7 @@ mi_gui.templates = {
                     {type = "label", style = "frame_title", caption = caption, elem_mods = {ignored_by_interaction = true}},
                     {type = "empty-widget", style = "flib_titlebar_drag_handle", elem_mods = {ignored_by_interaction = true}},
                     {type = "sprite-button", style = "frame_action_button",
-                        sprite = "utility/close_white", hovered_sprite = "utility/close_black", clicked_sprite = "utility/close_black",
+                        sprite = "utility/close", hovered_sprite = "utility/close_black", clicked_sprite = "utility/close_black",
                         actions = {on_click = {gui = "import", action = "close_button"}},
                     }
                 }},
@@ -234,7 +234,7 @@ function mi_gui.update_main_button(player)
     local visible = not player.mod_settings["module_inserter_hide_button"].value
     local style = player.mod_settings["module_inserter_button_style"].value
     if not button then
-        gui.build(button_flow, {{
+        gui.add(button_flow, {{
             type = "sprite-button",
             name = "module_inserter_config_button",
             actions = {on_click = {gui = "mod_gui_button", action = "toggle"}},
@@ -252,8 +252,8 @@ function mi_gui.create(player_index)
     local player = game.get_player(player_index)
     if not player or not pdata then return end
 
-    pdata.config_tmp = table.deep_copy(pdata.config)
-    local config_tmp = pdata.config_tmp
+    local config_tmp = table.deep_copy(pdata.config)
+    pdata.config_tmp = config_tmp
 
     local max_config_size = table_size(config_tmp)
     max_config_size = (max_config_size > START_SIZE) and max_config_size or START_SIZE
@@ -262,93 +262,193 @@ function mi_gui.create(player_index)
             config_tmp[index] = {to = {}, cTable = {}}
         end
     end
-    local refs = gui.build(player.gui.screen,{
-        {type = "frame", style_mods = {maximal_height = 650}, direction = "vertical",
-            actions = {on_closed = {gui = "main", action = "close_window"}},
-            ref = {"main", "window"},
+    local refs = gui.add(player.gui.screen, {
+        {
+            type = "frame",
+            style_mods = { maximal_height = 650 },
+            direction = "vertical",
+            actions = { on_closed = { gui = "main", action = "close_window" } },
+            name = "main_window",
             children = {
-                {type = "flow", ref = {"main", "titlebar_flow"},
+                {
+                    type = "flow",
+                    name = "titlebar_flow",
                     children = {
-                        {type = "label", style = "frame_title", caption = "Module Inserter", elem_mods = {ignored_by_interaction = true}},
-                        {type = "empty-widget", style = "flib_titlebar_drag_handle", elem_mods = {ignored_by_interaction = true}},
-                        {type = "sprite-button", style = "frame_action_button_red", sprite = "utility/trash", tooltip = {"module-inserter-destroy"},
-                            actions = {on_click = {gui = "main", action = "destroy_tool"},}
+                        { type = "label",        style = "frame_title",               caption = "Module Inserter",                elem_mods = { ignored_by_interaction = true } },
+                        { type = "empty-widget", style = "flib_titlebar_drag_handle", elem_mods = { ignored_by_interaction = true } },
+                        {
+                            type = "sprite-button",
+                            style = "frame_action_button_red",
+                            sprite = "utility/trash",
+                            tooltip = { "module-inserter-destroy" },
+                            actions = { on_click = { gui = "main", action = "destroy_tool" }, }
                         },
-                        {type = "sprite-button", style = "frame_action_button", tooltip={"module-inserter-keep-open"},
-                            sprite = pdata.pinned and "mi_pin_black" or "mi_pin_white", hovered_sprite = "mi_pin_black", clicked_sprite = "mi_pin_black",
-                            ref = {"main", "pin_button"},
-                            actions = {on_click = {gui = "main", action = "pin"}},
+                        {
+                            type = "sprite-button",
+                            style = "frame_action_button",
+                            tooltip = { "module-inserter-keep-open" },
+                            sprite = pdata.pinned and "mi_pin_black" or "mi_pin_white",
+                            hovered_sprite = "mi_pin_black",
+                            clicked_sprite = "mi_pin_black",
+                            name = "pin_button",
+                            actions = { on_click = { gui = "main", action = "pin" } },
                         },
-                        {type = "sprite-button", style = "frame_action_button",
-                            sprite = "utility/close_white", hovered_sprite = "utility/close_black", clicked_sprite = "utility/close_black",
-                            actions = {on_click = {gui = "main", action = "close"}}
+                        {
+                            type = "sprite-button",
+                            style = "frame_action_button",
+                            sprite = "utility/close",
+                            hovered_sprite = "utility/close_black",
+                            clicked_sprite = "utility/close_black",
+                            actions = { on_click = { gui = "main", action = "close" } }
                         }
                     }
                 },
-                {type = "flow", direction = "horizontal", style = "inset_frame_container_horizontal_flow", children = {
-                    {type = "frame", style = "inside_shallow_frame", direction = "vertical", children = {
-                        {type = "frame", style = "subheader_frame", children={
-                            {type = "label", style = "subheader_caption_label", caption = {"module-inserter-config-frame-title"}},
-                            mi_gui.templates.pushers.horizontal,
-                            {type = "sprite-button", style = "tool_button_green", style_mods = {padding = 0},
-                                actions = {on_click = {gui = "main", action = "apply_changes"}},
-                                sprite = "utility/check_mark_white", tooltip = {"module-inserter-config-button-apply"}
-                            },
-                            {type = "sprite-button", style = "tool_button_red", sprite = "utility/trash", tooltip = {"module-inserter-config-button-clear-all"},
-                                actions = {on_click = {gui = "main", action = "clear_all"}},
-                            },
-                        }},
-                        {type = "flow", direction="vertical", style_mods = {padding= 12, top_padding = 8, vertical_spacing = 10}, children = {
-                            {type = "frame", style = "deep_frame_in_shallow_frame",
-                                style_mods = {horizontally_stretchable = true, minimal_height = 444}, children = {
-                                {type = "scroll-pane", style="mi_naked_scroll_pane", name = "config_rows",
-                                    style_mods = {minimal_width = 214},
-                                    ref = {"main", "config_rows"},
-                                    children = mi_gui.templates.config_rows(max_config_size, config_tmp)
-                                }
-                            }}
-                        }}
-                    }},
-                    {type = "frame", style = "inside_shallow_frame", direction = "vertical", children = {
-                        {type = "frame", style = "subheader_frame", children={
-                            {type = "label", style = "subheader_caption_label", caption = {"module-inserter-storage-frame-title"}},
-                            mi_gui.templates.pushers.horizontal,
-                            {type = "sprite-button", style = "tool_button", sprite = "mi_import_string", tooltip = {"module-inserter-import_tt"},
-                                actions = {on_click = {gui = "presets", action = "import"}},
-                            },
-                            {type = "sprite-button", style = "tool_button", sprite = "utility/export_slot", tooltip = {"module-inserter-export_tt"},
-                                actions = {on_click = {gui = "presets", action = "export"}},
-                            },
-                        }},
-                        {type = "flow", direction="vertical", style_mods = {width = 246, padding= 12, top_padding = 8, vertical_spacing = 10}, children = {
-                            {type = "flow", direction = "horizontal", children ={
-                                {type = "textfield", text = pdata.last_preset, style_mods = {width = 150},
-                                    ref = {"presets", "textfield"},
-                                    actions = {on_click = {gui = "presets", action = "textfield"}},
+                {
+                    type = "flow",
+                    direction = "horizontal",
+                    style = "inset_frame_container_horizontal_flow",
+                    children = {
+                        {
+                            type = "frame",
+                            style = "inside_shallow_frame",
+                            direction = "vertical",
+                            children = {
+                                {
+                                    type = "frame",
+                                    style = "subheader_frame",
+                                    children = {
+                                        { type = "label", style = "subheader_caption_label", caption = { "module-inserter-config-frame-title" } },
+                                        mi_gui.templates.pushers.horizontal,
+                                        {
+                                            type = "sprite-button",
+                                            style = "tool_button_green",
+                                            style_mods = { padding = 0 },
+                                            actions = { on_click = { gui = "main", action = "apply_changes" } },
+                                            sprite = "utility/check_mark_white",
+                                            tooltip = { "module-inserter-config-button-apply" }
+                                        },
+                                        {
+                                            type = "sprite-button",
+                                            style = "tool_button_red",
+                                            sprite = "utility/trash",
+                                            tooltip = { "module-inserter-config-button-clear-all" },
+                                            actions = { on_click = { gui = "main", action = "clear_all" } },
+                                        },
+                                    }
                                 },
-                                mi_gui.templates.pushers.horizontal,
-                                {type = "button", caption = {"gui-save-game.save"}, style = "module-inserter-small-button",
-                                    actions = {on_click = {gui = "presets", action = "save"}}
-                                },
-                            }},
-                            {type = "frame", style = "deep_frame_in_shallow_frame", children = {
-                                {type = "scroll-pane",style="mi_naked_scroll_pane",
-                                    style_mods = {vertically_stretchable = true, minimal_width = 222},
-                                    ref = {"presets", "scroll_pane"},
-                                    children = mi_gui.templates.preset_rows(pdata.storage, pdata.last_preset)
+                                {
+                                    type = "flow",
+                                    direction = "vertical",
+                                    style_mods = { padding = 12, top_padding = 8, vertical_spacing = 10 },
+                                    children = {
+                                        {
+                                            type = "frame",
+                                            style = "deep_frame_in_shallow_frame",
+                                            style_mods = { horizontally_stretchable = true, minimal_height = 444 },
+                                            children = {
+                                                {
+                                                    type = "scroll-pane",
+                                                    style = "mi_naked_scroll_pane",
+                                                    name = "config_rows",
+                                                    style_mods = { minimal_width = 214 },
+                                                    children = mi_gui.templates.config_rows(max_config_size, config_tmp)
+                                                }
+                                            }
+                                        }
+                                    }
                                 }
-                            }}
-                        }}
-                    }}
-                }}
-            }},
+                            }
+                        },
+                        {
+                            type = "frame",
+                            style = "inside_shallow_frame",
+                            direction = "vertical",
+                            children = {
+                                {
+                                    type = "frame",
+                                    style = "subheader_frame",
+                                    children = {
+                                        { type = "label", style = "subheader_caption_label", caption = { "module-inserter-storage-frame-title" } },
+                                        mi_gui.templates.pushers.horizontal,
+                                        {
+                                            type = "sprite-button",
+                                            style = "tool_button",
+                                            sprite = "mi_import_string",
+                                            tooltip = { "module-inserter-import_tt" },
+                                            actions = { on_click = { gui = "presets", action = "import" } },
+                                        },
+                                        {
+                                            type = "sprite-button",
+                                            style = "tool_button",
+                                            sprite = "utility/export_slot",
+                                            tooltip = { "module-inserter-export_tt" },
+                                            actions = { on_click = { gui = "presets", action = "export" } },
+                                        },
+                                    }
+                                },
+                                {
+                                    type = "flow",
+                                    direction = "vertical",
+                                    style_mods = { width = 246, padding = 12, top_padding = 8, vertical_spacing = 10 },
+                                    children = {
+                                        {
+                                            type = "flow",
+                                            direction = "horizontal",
+                                            children = {
+                                                {
+                                                    type = "textfield",
+                                                    text = pdata.last_preset,
+                                                    style_mods = { width = 150 },
+                                                    name = "textfield",
+                                                    actions = { on_click = { gui = "presets", action = "textfield" } },
+                                                },
+                                                mi_gui.templates.pushers.horizontal,
+                                                {
+                                                    type = "button",
+                                                    caption = { "gui-save-game.save" },
+                                                    style = "module-inserter-small-button",
+                                                    actions = { on_click = { gui = "presets", action = "save" } }
+                                                },
+                                            }
+                                        },
+                                        {
+                                            type = "frame",
+                                            style = "deep_frame_in_shallow_frame",
+                                            children = {
+                                                {
+                                                    type = "scroll-pane",
+                                                    style = "mi_naked_scroll_pane",
+                                                    style_mods = { vertically_stretchable = true, minimal_width = 222 },
+                                                    name = "scroll_pane",
+                                                    children = mi_gui.templates.preset_rows(pdata.storage,
+                                                        pdata.last_preset)
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
     })
-    refs.main.titlebar_flow.drag_target = refs.main.window
-    refs.main.window.force_auto_center()
+    -- TODO change how these get stored and referenced
+    refs.main = {}
+    refs.main.window = refs.main_window
+    refs.main.pin_button = refs.pin_button
+    refs.main.config_rows = refs.config_rows
+    refs.presets = {}
+    refs.presets.textfield = refs.textfield
+    refs.presets.scroll_pane = refs.scroll_pane
+
+    refs.titlebar_flow.drag_target = refs.main_window
+    refs.main_window.force_auto_center()
     pdata.gui.main = refs.main
     pdata.gui.presets = refs.presets
     mi_gui.update_contents(pdata)
-    refs.main.window.visible = false
+    refs.main_window.visible = false
 end
 
 function mi_gui.create_import_window(pdata, player, bp_string)
@@ -357,7 +457,7 @@ function mi_gui.create_import_window(pdata, player, bp_string)
         import_gui.window.destroy()
         pdata.gui.import = nil
     end
-    local refs = gui.build(player.gui.screen, {mi_gui.templates.import_export_window(bp_string)})
+    local refs = gui.add(player.gui.screen, {mi_gui.templates.import_export_window(bp_string)})
     pdata.gui.import = refs.import
     import_gui = pdata.gui.import
     import_gui.titlebar_flow.drag_target = import_gui.window
@@ -389,7 +489,7 @@ end
 
 function mi_gui.extend_rows(config_rows, c, config_tmp)
     if not config_rows.children[c+1] then
-        gui.build(config_rows, {mi_gui.templates.config_row(c+1)})
+        gui.add(config_rows, {mi_gui.templates.config_row(c+1)})
         mi_gui.update_modules(config_rows.children[c+1])
         config_tmp[c+1] = {cTable = {}, to = {}}
         config_rows.scroll_to_bottom()
@@ -416,7 +516,7 @@ function mi_gui.update_modules(config, slots, modules)
     end
     if module_btns < slots then
         for i = module_btns + 1, slots do
-            gui.build(config.modules, {mi_gui.templates.module_button(i, nil, assembler)})
+            gui.add(config.modules, {mi_gui.templates.module_button(i, nil, assembler)})
         end
         for i = 1, slots do
             local child = config.modules.children[i]
@@ -443,7 +543,7 @@ function mi_gui.update_row(pdata, index, assembler, tooltip, slots, modules)--lu
     if not row then
         local row_template = mi_gui.templates.config_row(index)
         row_template.ref = {"child"}
-        local refs = gui.build(config_rows, {row_template})
+        local refs = gui.add(config_rows, {row_template})
         row = refs.child
     end
     row.assembler.elem_value = assembler
@@ -505,7 +605,7 @@ function mi_gui.add_preset(player, pdata, name, config, textfield)
     end
 
     pdata.storage[name] = table.deep_copy(config)
-    gui.build(gui_elements.presets.scroll_pane, {mi_gui.templates.preset_row(name)})
+    gui.add(gui_elements.presets.scroll_pane, {mi_gui.templates.preset_row(name)})
     return true
 end
 
