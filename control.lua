@@ -20,7 +20,7 @@ storage = {}
 --- @field last_preset string
 --- @field config table
 --- @field config_tmp table?
---- @field storage table
+--- @field pstorage table
 --- @field gui table
 --- @field pinned boolean Is the gui pinned
 --- @field config_by_entity ConfigByEntity
@@ -617,7 +617,7 @@ local function remove_invalid_items()
         if pdata.config_tmp then
             _remove(pdata.config_tmp)
         end
-        for _, preset in pairs(pdata.storage) do
+        for _, preset in pairs(pdata.pstorage) do
             _remove(preset)
         end
     end
@@ -643,7 +643,7 @@ local function init_player(i)
         last_preset = pdata.last_preset or "",
         config = pdata.config or {},
         config_by_entity = pdata.config_by_entity or {},
-        storage = pdata.storage or {},
+        pstorage = pdata.pstorage or {},
         gui = pdata.gui or {},
     }
     mi_gui.update_main_button(game.get_player(i))

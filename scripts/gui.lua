@@ -105,15 +105,15 @@ local function import_config(player, bp_string)
             inventory.destroy()
             return result, config, name
         elseif stack.type == "blueprint-book" then
-            local storage = {}
+            local pstorage = {}
             local name, item
             local book_inventory = stack.get_inventory(defines.inventory.item_main)
             for i = 1, #book_inventory do
                 item = book_inventory[i]
                 name = item.label or "ModuleInserter Configuration"
-                storage[name] = to_config(item.get_blueprint_entities())
+                pstorage[name] = to_config(item.get_blueprint_entities())
             end
-            return result, storage
+            return result, pstorage
         end
     end)
     if not status then
@@ -420,7 +420,7 @@ function mi_gui.create(player_index)
                                                     style = "mi_naked_scroll_pane",
                                                     style_mods = { vertically_stretchable = true, minimal_width = 222 },
                                                     name = "scroll_pane",
-                                                    children = mi_gui.templates.preset_rows(pdata.storage,
+                                                    children = mi_gui.templates.preset_rows(pdata.pstorage,
                                                         pdata.last_preset)
                                                 }
                                             }
@@ -589,7 +589,7 @@ function mi_gui.add_preset(player, pdata, name, config, textfield)
         player.print({"module-inserter-storage-name-not-set"})
         return
     end
-    if pdata.storage[name] then
+    if pdata.pstorage[name] then
         if not player.mod_settings["module_inserter_overwrite"].value then
             player.print{"module-inserter-storage-name-in-use", name}
             if textfield then
@@ -598,13 +598,13 @@ function mi_gui.add_preset(player, pdata, name, config, textfield)
             end
             return
         else
-            pdata.storage[name] = table.deep_copy(config)
+            pdata.pstorage[name] = table.deep_copy(config)
             player.print{"module-inserter-storage-updated", name}
             return true
         end
     end
 
-    pdata.storage[name] = table.deep_copy(config)
+    pdata.pstorage[name] = table.deep_copy(config)
     gui.add(gui_elements.presets.scroll_pane, {mi_gui.templates.preset_row(name)})
     return true
 end
@@ -863,7 +863,7 @@ mi_gui.handlers = {
             end
         end,
         export = function(e)
-            local text = export_config(e.player, e.pdata.storage)
+            local text = export_config(e.player, e.pdata.pstorage)
             if not text then return end
             if e.shift then
                 local stack = e.player.cursor_stack
@@ -888,7 +888,7 @@ mi_gui.handlers = {
             local pdata = e.pdata
             local gui_elements = pdata.gui
 
-            local preset = pdata.storage[name]
+            local preset = pdata.pstorage[name]
             if not preset then return end
 
             pdata.config_tmp = table.deep_copy(preset)
@@ -920,7 +920,7 @@ mi_gui.handlers = {
         export = function(e)
             local pdata = e.pdata
             local name = e.element.parent.children[1].caption
-            local config = pdata.storage[name]
+            local config = pdata.pstorage[name]
             if not config or not name or name == "" then
                 e.player.print("Preset " .. name .. "not found")
                 return
@@ -948,7 +948,7 @@ mi_gui.handlers = {
             local name = e.element.parent.children[1].caption
             local pdata = e.pdata
             local parent = e.element.parent
-            pdata.storage[name] = nil
+            pdata.pstorage[name] = nil
             parent.destroy()
         end
     },
