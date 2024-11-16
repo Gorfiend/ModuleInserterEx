@@ -8,7 +8,7 @@ local debugDump = lib.debugDump
 
 -- GlobalData
 --- @class GlobalData
---- @field to_create table
+--- @field to_create {[int]:{[int]:ToCreateData}}
 --- @field nameToSlots {[string]:int} Name of all entities mapped to their module slot count
 --- @field module_entities string[] all entities that have valid module slots
 --- @field _pdata {[int]:PlayerConfig}
@@ -41,6 +41,13 @@ storage = {}
 --- @field to string[] array of module slot indexes to the module in that slot
 
 --- @alias CTable {[string]:int}
+
+
+--- @class ToCreateData
+--- @field entity LuaEntity
+--- @field modules string[]
+--- @field player LuaPlayer
+--- @field surface LuaSurface
 
 local inventory_defines_map = {
     ["furnace"] = defines.inventory.furnace_modules,
@@ -190,26 +197,34 @@ local function create_upgrade_planner(contents, desired, desired_count, upgrade_
     end
 end
 
---- @param entity LuaEntity
---- @param modules string[] List of modules to set it to
---- @param desired CTable
---- @param player LuaPlayer
-local function create_request_proxy(entity, modules, desired, player, create_entity)
+--- @param module_name string
+--- @param stack_index int
+--- @param inventory_define defines.inventory
+--- @return table
+local function createBlueprintInsertPlan(module_name, stack_index, inventory_define)
+    return {
+        id = { name = module_name, },
+        items = {
+            in_inventory = {{
+                inventory = inventory_define,
+                stack = stack_index - 1,
+                count = 1,
+            }}
+        }
+    }
+end
+
+--- @param data ToCreateData
+local function create_request_proxy(data)
+    entity = data.entity
+    modules = data.modules
+
     if entity.type == "entity-ghost" then
         local inventory_define = inventory_defines_map[entity.ghost_type]
         local module_requests = {}
         for i = 1, #modules do
             local target = modules[i]
-            module_requests[i] = {
-                id = { name = target, },
-                items = {
-                    in_inventory = {{
-                        inventory = inventory_define,
-                        stack = i - 1,
-                        count = 1,
-                    }}
-                }
-            }
+            module_requests[i] = createBlueprintInsertPlan(target, i, inventory_define)
         end
         entity.insert_plan = module_requests
         return
@@ -222,7 +237,7 @@ local function create_request_proxy(entity, modules, desired, player, create_ent
 
     local inventory_define = inventory_defines_map[entity.type]
     if not inventory_define then
-        player.print("ERROR: Unknown inventory type: " .. entity.type)
+        data.player.print("ERROR: Unknown inventory type: " .. entity.type)
         return
     end
 
@@ -243,28 +258,10 @@ local function create_request_proxy(entity, modules, desired, player, create_ent
         end
 
         if need_to_add then
-            module_requests[i] = {
-                id = { name = target, },
-                items = {
-                    in_inventory = {{
-                        inventory = inventory_define,
-                        stack = i - 1,
-                        count = 1,
-                    }}
-                }
-            }
+            module_requests[i] = createBlueprintInsertPlan(target, i, inventory_define)
         end
         if need_to_remove then
-            removal_plan[i] = {
-                id = { name = stack.name, },
-                items = {
-                    in_inventory = {{
-                        inventory = inventory_define,
-                        stack = i - 1,
-                        count = stack.count,
-                    }}
-                }
-            }
+            removal_plan[i] = createBlueprintInsertPlan(stack.name, i, inventory_define)
         end
     end
     if next(module_requests) == nil and next(removal_plan) == nil then
@@ -284,7 +281,7 @@ local function create_request_proxy(entity, modules, desired, player, create_ent
         create_info.removal_plan = removal_plan
     end
 
-    create_entity(create_info)
+    data.surface.create_entity(create_info)
 end
 
 local function delayed_creation(e)
@@ -294,7 +291,7 @@ local function delayed_creation(e)
         for _, data in pairs(current) do
             ent = data.entity
             if ent and ent.valid then
-                create_request_proxy(ent, data.modules, data.cTable, data.player, data.surface.create_entity)
+                create_request_proxy(data)
             end
         end
         storage.to_create[e.tick] = nil
@@ -360,11 +357,12 @@ local function on_player_selected_area(e)
         end
         local ent_type, target
         local surface = player.surface
-        local delay = e.tick
+        local delay = e.tick --[[@as uint]]
         local max_proxies = settings.global["module_inserter_proxies_per_tick"].value
         local message = nil
         local default_config = config["mi-default-proxy-machine"]
         for i, entity in pairs(e.entities) do
+            entity = entity --[[@as LuaEntity]]
             --remove existing proxies if we have a config for its target
             if entity.name == "item-request-proxy" then
                 target = entity.proxy_target
@@ -412,12 +410,10 @@ local function on_player_selected_area(e)
             ent_type = ent_prop("type")
             local recipe = ent_type == "assembling-machine" and entity.get_recipe()
             local entity_config = nil
-            local cTable = nil
             if recipe then
                 for _, e_config in pairs(entity_configs) do
                     if modules_allowed(recipe, e_config.cTable) then
                         entity_config = e_config
-                        cTable = e_config.cTable
                         break
                     else
                         message = "item-limitation.production-module-usable-only-on-intermediates"
@@ -425,19 +421,17 @@ local function on_player_selected_area(e)
                 end
             else
                 entity_config = entity_configs[1]
-                cTable = entity_config.cTable
             end
-            if entity_config and cTable then
+            if entity_config then
                 if (i % max_proxies == 0) then
                     delay = delay + 1
                 end
                 if not storage.to_create[delay] then storage.to_create[delay] = {} end
-                storage.to_create[delay][entity.unit_number] = {
+                storage.to_create[delay][entity.unit_number --[[@as int]]] = {
                     entity = entity,
                     modules = table.shallow_copy(entity_config.to),
-                    cTable = table.shallow_copy(cTable),
                     player = player,
-                    surface = surface
+                    surface = surface,
                 }
             end
             ::continue::
@@ -494,7 +488,6 @@ local function on_player_reverse_selected_area(e)
                 storage.to_create[delay][entity.unit_number] = {
                     entity = entity,
                     modules = {},
-                    cTable = {},
                     player = player,
                     surface = surface
                 }
