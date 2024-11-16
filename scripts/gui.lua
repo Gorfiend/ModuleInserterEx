@@ -72,7 +72,7 @@ local function import_config(player, bp_string)
             local config_index = 0
             local modules
             for _, ent in pairs(entities) do
-                if storage.nameToSlots[ent.name] then
+                if storage.name_to_slot_count[ent.name] then
                     modules = {}
                     config_index = config_index + 1
                     if ent.items then
@@ -155,7 +155,7 @@ mi_gui.templates = {
     config_row = function(index, config)
         config = config or {}
         local assembler = config.from
-        local slots = assembler and storage.nameToSlots[assembler] or 2
+        local slots = assembler and storage.name_to_slot_count[assembler] or 0
         local modules = config.to or {}
         local row = {
             type = "flow",
@@ -404,7 +404,7 @@ function mi_gui.create(player_index)
                                                     type = "scroll-pane",
                                                     style = "mi_naked_scroll_pane",
                                                     name = "config_rows",
-                                                    style_mods = { minimal_width = 214 },
+                                                    style_mods = { minimal_width = 374 },
                                                     children = mi_gui.templates.config_rows(max_config_size, config_tmp)
                                                 }
                                             }
@@ -553,24 +553,20 @@ function mi_gui.extend_rows(config_rows, c, config_tmp)
     end
 end
 
----@param slots int
+--- @param config LuaGuiElement
+--- @param slots int
+--- @param modules ModuleConfig
 function mi_gui.update_modules(config, slots, modules)
-    modules = modules or {}
-    slots = slots or 2
-
     local module_btns = table_size(config.modules.children)
     local assembler = config.children[1].elem_value
     if not assembler then
-        for i, btn in pairs(config.modules.children) do
-            btn.elem_value = nil
-            btn.locked = true
-            btn.tooltip = {"module-inserter-choose-module"}
-            if i > 2 then
-                btn.visible = false
-            end
+        for _, btn in pairs(config.modules.children) do
+            btn.destroy()
         end
         return
     end
+    slots = slots or 0
+    modules = modules or {}
     if module_btns < slots then
         for i = module_btns + 1, slots do
             gui.add(config.modules, {mi_gui.templates.module_button(i, nil, assembler)})
@@ -622,7 +618,7 @@ function mi_gui.update_contents(pdata, clear)
             assembler = config.from
             assembler_proto = assembler and prototypes.entity[assembler]
             tooltip = assembler_proto and assembler_proto.localised_name
-            slots = storage.nameToSlots[config.from]
+            slots = storage.name_to_slot_count[config.from]
             modules = config.to
         else
             assembler, tooltip, slots, modules = nil, nil, nil, nil
@@ -811,6 +807,16 @@ mi_gui.handlers = {
                 return
             end
 
+            if elem_value then
+                for k, v in pairs(config_tmp) do
+                    if v.from and k ~= index and v.from == elem_value then
+                        e.event.element.elem_value = nil
+                        e.player.print({"", prototypes.entity[elem_value].localised_name, " is already configured in row ", k})
+                        return
+                    end
+                end
+            end
+
             local c = table_size(config_tmp)
 
             if not elem_value then
@@ -824,7 +830,7 @@ mi_gui.handlers = {
             element.tooltip = prototypes.entity[elem_value].localised_name
             config_tmp[index].from = elem_value
 
-            mi_gui.update_modules(config_rows.children[index], storage.nameToSlots[elem_value])
+            mi_gui.update_modules(config_rows.children[index], storage.name_to_slot_count[elem_value])
             if index == c then
                 mi_gui.extend_rows(config_rows, c, config_tmp)
             end

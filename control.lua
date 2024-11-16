@@ -9,7 +9,7 @@ local debugDump = lib.debugDump
 -- GlobalData
 --- @class GlobalData
 --- @field to_create {[int]:{[int]:ToCreateData}}
---- @field nameToSlots {[string]:int} Name of all entities mapped to their module slot count
+--- @field name_to_slot_count {[string]:int} Name of all entities mapped to their module slot count
 --- @field module_entities string[] all entities that have valid module slots
 --- @field _pdata {[int]:PlayerConfig}
 storage = {}
@@ -26,9 +26,7 @@ storage = {}
 --- @field cursor boolean True when the module inserter item is in this players cursor
 
 
---- @alias ConfigByEntity {[string]: ModuleSpecification}
-
---- @class ModuleSpecification
+--- @alias ConfigByEntity {[string]: ModuleConfig}
 
 --- @class MiEventInfo
 --- @field event flib.GuiEventData
@@ -135,11 +133,11 @@ end
 --only 1 type desired
 --multiple module types if:
 --  amounts can be matched from contents to desired
----@param contents ItemCountWithQuality[]
----@param desired any
----@param desired_count any
----@param upgrade_planner LuaItemCommon
----@return LuaItemCommon?
+--- @param contents ItemCountWithQuality[]
+--- @param desired any
+--- @param desired_count any
+--- @param upgrade_planner LuaItemCommon
+--- @return LuaItemCommon?
 local function create_upgrade_planner(contents, desired, desired_count, upgrade_planner)
     if desired_count == 0 or table_size(contents) == 0 then return end
     if desired_count == 1 then
@@ -507,12 +505,12 @@ local function se_grounded_entity(name)
 end
 
 local function create_lookup_tables()
-    storage.nameToSlots = {}
+    storage.name_to_slot_count = {}
     storage.module_entities = {}
     local i = 1
     for name, prototype in pairs(prototypes.entity) do
         if prototype.module_inventory_size and prototype.module_inventory_size > 0 and not se_grounded_entity(name) then
-            storage.nameToSlots[name] = prototype.module_inventory_size
+            storage.name_to_slot_count[name] = prototype.module_inventory_size
             storage.module_entities[i] = name
             i = i + 1
         end
@@ -560,7 +558,7 @@ end
 
 local function init_global()
     storage.to_create = storage.to_create or {}
-    storage.nameToSlots = storage.nameToSlots or {}
+    storage.name_to_slot_count = storage.name_to_slot_count or {}
     storage._pdata = storage._pdata or {}
 end
 
