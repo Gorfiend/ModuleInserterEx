@@ -50,42 +50,6 @@ local inventory_defines_map = {
     ["beacon"] = defines.inventory.beacon_modules,
 }
 
-local function compare_contents(tbl1, tbl2)
-    if tbl1 == tbl2 then return true end
-    for k, value in pairs(tbl1) do
-        if (value ~= tbl2[k]) then return false end
-    end
-    for k, _ in pairs(tbl2) do
-        if tbl1[k] == nil then return false end
-    end
-    return true
-end
-
-local function sort_modules(entity, modules, cTable)
-    --Don't sort empty inventories
-    if not next(modules) then return end
-    local inventory = entity.get_module_inventory()
-    local contents = inventory and inventory.get_contents()
-    if compare_contents(cTable, contents) then
-        local status, err = pcall(function()
-            inventory.clear()
-            local insert = inventory.insert
-            for _, module in pairs(modules) do
-                if module then
-                    insert{name = module, count = 1}
-                end
-            end
-        end)
-        if not status then
-            debugDump(err, true)
-            inventory.clear()
-            for name, count in pairs(contents) do
-                inventory.insert{name = name, count = count}
-            end
-        end
-    end
-end
-
 script.on_event(defines.events.on_mod_item_opened, function(e)
     if e.item.name == "module-inserter" then
         e.player = game.get_player(e.player_index)
@@ -230,7 +194,22 @@ end
 --- @param player LuaPlayer
 local function create_request_proxy(entity, modules, desired, player, create_entity)
     if entity.type == "entity-ghost" then
-        entity.item_requests = desired
+        local inventory_define = inventory_defines_map[entity.ghost_type]
+        local module_requests = {}
+        for i = 1, #modules do
+            local target = modules[i]
+            module_requests[i] = {
+                id = { name = target, },
+                items = {
+                    in_inventory = {{
+                        inventory = inventory_define,
+                        stack = i - 1,
+                        count = 1,
+                    }}
+                }
+            }
+        end
+        entity.insert_plan = module_requests
         return
     end
 
@@ -384,7 +363,7 @@ local function on_player_selected_area(e)
         local message = nil
         local default_config = config["mi-default-proxy-machine"]
         for i, entity in pairs(e.entities) do
-            --remove existing proxies if we have a config for it's target
+            --remove existing proxies if we have a config for its target
             if entity.name == "item-request-proxy" then
                 target = entity.proxy_target
                 if target and target.valid and (config[target.name] or default_config) then -- also check config.default
@@ -479,7 +458,7 @@ local function on_player_alt_selected_area(e)
             if entity.name == "item-request-proxy" then
                 entity.destroy{raise_destroy = true}
             elseif entity.type == "entity-ghost" then
-                entity.item_requests = {}
+                entity.insert_plan = {}
             end
         end
         conditional_events()
@@ -504,7 +483,7 @@ local function on_player_reverse_selected_area(e)
             if entity.name == "item-request-proxy" then
                 entity.destroy{raise_destroy = true}
             elseif entity.type == "entity-ghost" then
-                entity.item_requests = {}
+                entity.insert_plan = {}
             else
                 if (i % max_proxies == 0) then
                     delay = delay + 1
