@@ -236,13 +236,12 @@ mi_gui.templates = {
         local button_handler = bp_string and mi_gui.handlers.import.close_button or mi_gui.handlers.import.import_button
         return {
             type = "frame",
-            style = "flib_shallow_frame_in_shallow_frame", -- TODO probably change this style
             direction = "vertical",
-            ref = { "import", "window" },
+            name = "window",
             children = {
                 {
                     type = "flow",
-                    ref = { "import", "titlebar_flow" },
+                    name = "titlebar_flow",
                     children = {
                         { type = "label",        style = "frame_title",               caption = caption,                            elem_mods = { ignored_by_interaction = true } },
                         { type = "empty-widget", style = "flib_titlebar_drag_handle", elem_mods = { ignored_by_interaction = true } },
@@ -261,7 +260,7 @@ mi_gui.templates = {
                     text = bp_string,
                     elem_mods = { word_wrap = true },
                     style_mods = { width = 400, height = 250 },
-                    ref = { "import", "textbox" },
+                    name = "textbox",
                 },
                 {
                     type = "flow",
@@ -513,9 +512,12 @@ function mi_gui.create_import_window(pdata, player, bp_string)
         pdata.gui.import = nil
     end
     local refs = gui.add(player.gui.screen, {mi_gui.templates.import_export_window(bp_string)})
-    pdata.gui.import = refs.import
+    pdata.gui.import = {}
     import_gui = pdata.gui.import
-    import_gui.titlebar_flow.drag_target = import_gui.window
+    import_gui.window = refs.window
+    import_gui.textbox = refs.textbox
+
+    refs.titlebar_flow.drag_target = import_gui.window
     import_gui.window.force_auto_center()
     local textbox = import_gui.textbox
     if bp_string then
