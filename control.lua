@@ -8,7 +8,6 @@ local debugDump = lib.debugDump
 
 -- GlobalData
 --- @class GlobalData
---- @field proxies table
 --- @field to_create table
 --- @field nameToSlots {[string]:int} Name of all entities mapped to their module slot count
 --- @field module_entities string[] all entities that have valid module slots
@@ -41,6 +40,15 @@ storage = {}
 --- @field to string[] array of module slot indexes to the module in that slot
 
 --- @alias CTable {[string]:int}
+
+local inventory_defines_map = {
+    ["furnace"] = defines.inventory.furnace_modules,
+    ["assembling-machine"] = defines.inventory.assembling_machine_modules,
+    ["lab"] = defines.inventory.lab_modules,
+    ["mining-drill"] = defines.inventory.mining_drill_modules,
+    ["rocket-silo"] = defines.inventory.rocket_silo_modules,
+    ["beacon"] = defines.inventory.beacon_modules,
+}
 
 local function compare_contents(tbl1, tbl2)
     if tbl1 == tbl2 then return true end
@@ -220,19 +228,24 @@ end
 --- @param modules string[] List of modules to set it to
 --- @param desired CTable
 --- @param player LuaPlayer
-local function create_request_proxy(entity, modules, desired, proxies, player, create_entity, upgrade_planner)
+local function create_request_proxy(entity, modules, desired, player, create_entity)
     if entity.type == "entity-ghost" then
         entity.item_requests = desired
-        return proxies
+        return
     end
 
     local module_inventory = entity.get_module_inventory()
     if not module_inventory then
-        return proxies
+        return
     end
 
-    --Request all modules and done
-    local bpthing = {}
+    local inventory_define = inventory_defines_map[entity.type]
+    if not inventory_define then
+        player.print("ERROR: Unknown inventory type: " .. entity.type)
+        return
+    end
+
+    local module_requests = {}
     local removal_plan = {}
     for i = 1, #module_inventory do
         local stack = module_inventory[i]
@@ -249,11 +262,11 @@ local function create_request_proxy(entity, modules, desired, proxies, player, c
         end
 
         if need_to_add then
-            bpthing[i] = {
+            module_requests[i] = {
                 id = { name = target, },
                 items = {
                     in_inventory = {{
-                        inventory = defines.inventory.assembling_machine_modules, -- XXX TODO get the correct type from the target
+                        inventory = inventory_define,
                         stack = i - 1,
                         count = 1,
                     }}
@@ -265,17 +278,17 @@ local function create_request_proxy(entity, modules, desired, proxies, player, c
                 id = { name = stack.name, },
                 items = {
                     in_inventory = {{
-                        inventory = defines.inventory.assembling_machine_modules, -- XXX TODO get the correct type from the target
+                        inventory = inventory_define,
                         stack = i - 1,
                         count = stack.count,
                     }}
                 }
             }
         end
-        
     end
-    if next(bpthing) == nil and next(removal_plan) == nil then
-        return proxies
+    if next(module_requests) == nil and next(removal_plan) == nil then
+        -- Nothing needs to change, so skip creating anything
+        return
     end
 
     create_info = {
@@ -283,7 +296,7 @@ local function create_request_proxy(entity, modules, desired, proxies, player, c
         position = entity.position,
         force = entity.force,
         target = entity,
-        modules = bpthing,
+        modules = module_requests,
         raise_built = true
     }
     if next(removal_plan) ~= nil then
@@ -291,24 +304,18 @@ local function create_request_proxy(entity, modules, desired, proxies, player, c
     end
 
     create_entity(create_info)
-    return proxies
 end
 
 local function delayed_creation(e)
     local current = storage.to_create[e.tick]
     if current then
-        local proxies = storage.proxies
         local ent
-        local upgrade_inventory = game.create_inventory(1)
-        upgrade_inventory.insert{name = "upgrade-planner"}
         for _, data in pairs(current) do
             ent = data.entity
             if ent and ent.valid then
-                proxies = create_request_proxy(ent, data.modules, data.cTable, proxies, data.player, data.surface.create_entity, upgrade_inventory[1])
+                create_request_proxy(ent, data.modules, data.cTable, data.player, data.surface.create_entity)
             end
         end
-        upgrade_inventory.destroy()
-        storage.proxies = proxies
         storage.to_create[e.tick] = nil
         script.on_nth_tick(e.nth_tick, nil)
     end
@@ -578,7 +585,6 @@ local function remove_invalid_items()
 end
 
 local function init_global()
-    storage.proxies = storage.proxies or {}
     storage.to_create = storage.to_create or {}
     storage.nameToSlots = storage.nameToSlots or {}
     storage._pdata = storage._pdata or {}
@@ -670,16 +676,6 @@ script.on_event(defines.events.on_runtime_mod_setting_changed, function(e)
     if not e.player_index then return end
     if e.setting == "module_inserter_button_style" or e.setting == "module_inserter_hide_button" then
         mi_gui.update_main_button(game.get_player(e.player_index))
-    end
-end)
-
-script.on_event(defines.events.on_object_destroyed, function(e)
-    if e.unit_number and storage.proxies[e.unit_number] then
-        local data = storage.proxies[e.unit_number]
-        if data.target and data.target.valid then
-            sort_modules(data.target, data.modules, data.cTable)
-        end
-        storage.proxies[e.unit_number] = nil
     end
 end)
 
