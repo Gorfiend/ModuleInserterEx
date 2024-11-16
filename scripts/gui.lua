@@ -596,9 +596,8 @@ function mi_gui.update_row(pdata, index, assembler, tooltip, slots, modules)--lu
     local row = config_rows.children[index]
     if not row then
         local row_template = mi_gui.templates.config_row(index)
-        row_template.ref = {"child"}
-        local refs = gui.add(config_rows, {row_template})
-        row = refs.child
+        local _, first = gui.add(config_rows, {row_template})
+        row = first
     end
     row.assembler.elem_value = assembler
     row.assembler.tooltip = tooltip or {"module-inserter-choose-assembler"}
@@ -948,7 +947,7 @@ mi_gui.handlers = {
     preset = {
         --- @param e MiEventInfo
         load = function(e)
-            local name = e.element.caption
+            local name = e.event.element.caption
             local pdata = e.pdata
             local gui_elements = pdata.gui
 
@@ -984,7 +983,7 @@ mi_gui.handlers = {
         --- @param e MiEventInfo
         export = function(e)
             local pdata = e.pdata
-            local name = e.element.parent.children[1].caption
+            local name = e.event.element.parent.children[1].caption
             local config = pdata.pstorage[name]
             if not config or not name or name == "" then
                 e.player.print("Preset " .. name .. "not found")
@@ -1011,9 +1010,9 @@ mi_gui.handlers = {
         end,
         --- @param e MiEventInfo
         delete = function(e)
-            local name = e.element.parent.children[1].caption
+            local name = e.event.element.parent.children[1].caption --[[@as string]]
             local pdata = e.pdata
-            local parent = e.element.parent
+            local parent = e.event.element.parent --[[@as LuaGuiElement]]
             pdata.pstorage[name] = nil
             parent.destroy()
         end
