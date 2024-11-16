@@ -23,6 +23,7 @@ storage = {}
 --- @field gui_open boolean
 --- @field pinned boolean Is the gui pinned
 --- @field config_by_entity ConfigByEntity
+--- @field cursor boolean True when the module inserter item is in this players cursor
 
 
 --- @alias ConfigByEntity {[string]: ModuleSpecification}
@@ -70,12 +71,13 @@ local function get_module_inserter(e)
     local player = game.get_player(e.player_index)
     if not player then return end
     local inv = player.get_main_inventory()
-    local mi = inv.find_item_stack("module-inserter")
+    local mi = inv and inv.find_item_stack("module-inserter") or nil
     if mi then
         mi.swap_stack(player.cursor_stack)
     else
         player.clear_cursor()
-        player.cursor_stack.set_stack{name = "module-inserter", count = 1}
+        -- WHY IS THIS NOT WORKING IN REMOTE VIEW
+        player.cursor_stack.set_stack({ name = "module-inserter" })
     end
 end
 
@@ -425,7 +427,7 @@ local function on_player_selected_area(e)
                 entity_config = entity_configs[1]
                 cTable = entity_config.cTable
             end
-            if entity_config then
+            if entity_config and cTable then
                 if (i % max_proxies == 0) then
                     delay = delay + 1
                 end
@@ -580,6 +582,7 @@ local function init_player(i)
         gui = pdata.gui or {},
         gui_open = false,
         pinned = false,
+        cursor = false,
     }
     mi_gui.update_main_button(game.get_player(i))
     mi_gui.create(i)
@@ -660,6 +663,7 @@ end)
 
 script.on_event(defines.events.on_player_cursor_stack_changed, function(e)
     local player = game.get_player(e.player_index)
+    if not player then return end
     if player.mod_settings["module_inserter_hide_button"].value then return end
     -- Track if they have the module inserter in hand, then when they let go remove it from their inventory
     -- Don't do this if the mod gui button to open the inserter options is disabled
@@ -668,6 +672,7 @@ script.on_event(defines.events.on_player_cursor_stack_changed, function(e)
     elseif storage._pdata[e.player_index].cursor then
         storage._pdata[e.player_index].cursor = false
         local inv = player.get_main_inventory()
+        if not inv then return end
         local count = inv.get_item_count("module-inserter")
         if count > 0 then
             inv.remove{name = "module-inserter", count = count}

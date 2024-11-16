@@ -59,7 +59,7 @@ data:extend({
         name = "module-inserter",
         icon = "__ModuleInserterEx__/graphics/module-inserter-icon.png",
         icon_size = 32,
-        flags = {"not-stackable", "mod-openable"},
+        flags = {"not-stackable", "mod-openable", "spawnable"},
         hidden = true,
         stack_size = 1,
         select = {

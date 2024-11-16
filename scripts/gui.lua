@@ -281,8 +281,9 @@ mi_gui.templates = {
     end,
 }
 
---- @param player LuaPlayer
+--- @param player LuaPlayer?
 function mi_gui.update_main_button(player)
+    if not player then return end
     local button_flow = mod_gui.get_button_flow(player)
     local button = button_flow.module_inserter_config_button
     local visible = not player.mod_settings["module_inserter_hide_button"].value
