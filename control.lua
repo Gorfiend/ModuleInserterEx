@@ -17,29 +17,50 @@ storage = {}
 --- @class PlayerConfig
 --- @field last_preset string
 --- @field config ModuleConfig[]
---- @field config_tmp ModuleConfig[]?
---- @field pstorage table
---- @field gui table
+--- @field config_tmp ModuleConfig[]
+--- @field saved_presets SavedPresets
+--- @field gui PlayerGui
 --- @field gui_open boolean
 --- @field pinned boolean Is the gui pinned
 --- @field config_by_entity ConfigByEntity
 --- @field cursor boolean True when the module inserter item is in this players cursor
 
 
+--- @alias SavedPresets {string:ModuleConfig[]}
+
 --- @alias ConfigByEntity {[string]: ModuleConfig}
+
+--- @class PlayerGui
+--- @field main PlayerGuiMain
+--- @field presets PlayerGuiPresets
+--- @field import PlayerGuiImport?
+
+--- @class PlayerGuiMain
+--- @field window LuaGuiElement
+--- @field pin_button LuaGuiElement
+--- @field config_rows LuaGuiElement
+
+--- @class PlayerGuiPresets
+--- @field textfield LuaGuiElement
+--- @field scroll_pane LuaGuiElement
+
+--- @class PlayerGuiImport
+--- @field textbox LuaGuiElement
+--- @field window LuaGuiElement
+
+
+--- @class ModuleConfig
+--- @field from string? the entity name this applies to
+--- @field to string[] array of module slot indexes to the module in that slot
+--- @field cTable CTable modules mapped to their count
+
+--- @alias CTable {[string]:int}
+
 
 --- @class MiEventInfo
 --- @field event flib.GuiEventData
 --- @field player LuaPlayer
 --- @field pdata PlayerConfig
-
---- @class ModuleConfig
---- @field cTable CTable modules mapped to their count
---- @field from string the entity name this applies to
---- @field to string[] array of module slot indexes to the module in that slot
-
---- @alias CTable {[string]:int}
-
 
 --- @class ToCreateData
 --- @field entity LuaEntity
@@ -56,20 +77,28 @@ local inventory_defines_map = {
     ["beacon"] = defines.inventory.beacon_modules,
 }
 
+
+--- @param e GuiEventData|EventData.on_mod_item_opened|EventData.CustomInputEvent
+--- @return MiEventInfo
+local function make_event_info(e)
+    return {
+        event = e,
+        player = game.get_player(e.player_index),
+        pdata = storage._pdata[e.player_index],
+    }
+end
+
 script.on_event(defines.events.on_mod_item_opened, function(e)
     if e.item.name == "module-inserter" then
-        e.player = game.get_player(e.player_index)
-        e.pdata = storage._pdata[e.player_index]
-        if not e.pdata.gui_open then
-            mi_gui.open(e)
+        me = make_event_info(e)
+        if not me.pdata.gui_open then
+            mi_gui.open(me)
         end
     end
 end)
 
 script.on_event("toggle-module-inserter", function(e)
-    e.player = game.get_player(e.player_index)
-    e.pdata = storage._pdata[e.player_index]
-    mi_gui.toggle(e)
+    mi_gui.toggle(make_event_info(e))
 end)
 
 local function get_module_inserter(e)
@@ -96,102 +125,18 @@ end)
 script.on_event("mi-confirm-gui", function(e)
     local pdata =  storage._pdata and storage._pdata[e.player_index]
     if pdata and pdata.gui_open and not pdata.pinned then
-        e.pdata = pdata
-        e.player = game.get_player(e.player_index)
-        mi_gui.handlers.main.apply_changes(e)
+        me = {
+            event = e,
+            pdata = pdata,
+            player = game.get_player(e.player_index)
+        }
+        mi_gui.handlers.main.apply_changes(me)
     end
 end)
-
-local function drop_module(entity, name, count, module_inventory, chest, create_entity)
-    if not (chest and chest.valid) then
-        chest = create_entity{
-            name = "module_inserter_pickup",
-            position = entity.position,
-            force = entity.force,
-            create_build_effect_smoke = false
-        }
-        if not (chest and chest.valid) then
-            error("Invalid chest")
-        end
-    end
-
-    local stack = {name = name, count = count}
-    stack.count = chest.insert(stack)
-    if module_inventory.remove(stack) ~= stack.count then
-        log("Not all modules removed")
-    end
-    return chest
-end
 
 local function print_planner(planner)--luacheck: ignore
     for i = 1, 4 do
         log(serpent.line(planner.get_mapper(i, "from")) .. serpent.line(planner.get_mapper(i, "to")))
-    end
-end
-
---TODO: figure out which modules can be replaced via upgrade item
---only 1 type desired
---multiple module types if:
---  amounts can be matched from contents to desired
---- @param contents ItemCountWithQuality[]
---- @param desired any
---- @param desired_count any
---- @param upgrade_planner LuaItemCommon
---- @return LuaItemCommon?
-local function create_upgrade_planner(contents, desired, desired_count, upgrade_planner)
-    if desired_count == 0 or table_size(contents) == 0 then return end
-    if desired_count == 1 then
-        local from = {type = "item", name = ""}
-        local to = {type = "item", name = next(desired)}
-        local i = 0
-        for _, info in pairs(contents) do
-            if info.name ~= to.name then
-                i = i + 1
-                from.name = info.name
-                upgrade_planner.set_mapper(i, "from", from)
-                upgrade_planner.set_mapper(i, "to", to)
-            end
-        end
-        -- Fill empty slots too
-        i = i + 1
-        upgrade_planner.set_mapper(i, "to", to)
-        if i > 0 then
-            return upgrade_planner
-        end
-    end
-    local matches = {}
-    local assigned = {}
-    --"upgrading" to the same module
-    for name, c in pairs(contents) do
-        if desired[name] and desired[name] == c then
-            matches[name] = name
-            assigned[name] = name
-        end
-    end
-    for name, c in pairs(contents) do
-        for name_d, c_d in pairs(desired) do
-            if c == c_d and not matches[name] and not assigned[name_d] then
-                matches[name] = name_d
-                assigned[name_d] = name
-            end
-        end
-    end
-    if desired_count == table_size(matches) then
-        local from = {type = "item", name = ""}
-        local to = {type = "item", name = next(desired)}
-        local i = 0
-        for name, name_d in pairs(matches) do
-            if name ~= name_d then
-                from.name = name
-                to.name = name_d
-                i = i + 1
-                upgrade_planner.set_mapper(i, "from", from)
-                upgrade_planner.set_mapper(i, "to", to)
-            end
-        end
-        if i > 0 then
-            return upgrade_planner
-        end
     end
 end
 
@@ -469,6 +414,7 @@ local function on_player_reverse_selected_area(e)
         if e.item ~= "module-inserter" or not player_index then return end
 
         local player = game.get_player(player_index)
+        if not player then return end
         local surface = player.surface
         local delay = e.tick
         local max_proxies = settings.global["module_inserter_proxies_per_tick"].value
@@ -544,7 +490,7 @@ local function remove_invalid_items()
         if pdata.config_tmp then
             _remove(pdata.config_tmp)
         end
-        for _, preset in pairs(pdata.pstorage) do
+        for _, preset in pairs(pdata.saved_presets) do
             _remove(preset)
         end
     end
@@ -568,8 +514,9 @@ local function init_player(i)
     storage._pdata[i] = {
         last_preset = pdata.last_preset or "",
         config = pdata.config or {},
+        config_tmp = pdata.config_tmp or {},
         config_by_entity = pdata.config_by_entity or {},
-        pstorage = pdata.pstorage or {},
+        saved_presets = pdata.saved_presets or {},
         gui = pdata.gui or {},
         gui_open = false,
         pinned = false,
@@ -629,12 +576,7 @@ local function make_handler_table()
 end
 
 gui.add_handlers(make_handler_table(), function (e, handler)
-    ev = {
-        event = e,
-        player = game.get_player(e.player_index),
-        pdata = storage._pdata[e.player_index]
-    }
-    handler(ev)
+    handler(make_event_info(e))
 end)
 
 script.on_event(defines.events.on_player_created, function(e)

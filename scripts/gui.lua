@@ -18,7 +18,7 @@ local function export_config(player, config_data, name)
                         entity_number = i,
                         items = items,
                         name = config.from,
-                        position = {x = 0, y = i*5.5},
+                        position = { x = 0, y = i * 5.5 },
                     }
                     bp_index = bp_index + 1
                 end
@@ -29,22 +29,22 @@ local function export_config(player, config_data, name)
         --export a single preset
         if name then
             inventory = game.create_inventory(1)
-            inventory.insert{name = "blueprint"}
+            inventory.insert { name = "blueprint" }
             stack = inventory[1]
             stack.set_blueprint_entities(to_bp_entities(config_data))
             stack.label = name
 
             result = stack.export_stack()
             inventory.destroy()
-        --export all presets
+            --export all presets
         else
             inventory = game.create_inventory(1)
-            inventory.insert{name = "blueprint-book"}
+            inventory.insert { name = "blueprint-book" }
             local book = inventory[1]
             local book_inventory = book.get_inventory(defines.inventory.item_main)
             local index = 1
             for preset_name, preset_config in pairs(config_data) do
-                book_inventory.insert{name = "blueprint"}
+                book_inventory.insert { name = "blueprint" }
                 book_inventory[index].set_blueprint_entities(to_bp_entities(preset_config))
                 book_inventory[index].label = preset_name
                 index = index + 1
@@ -63,9 +63,14 @@ local function export_config(player, config_data, name)
     end
 end
 
+--- @param player any
+--- @param bp_string any
+--- @return int status return of import_stack, or 2 for other errors
+--- @return ModuleConfig
+--- @return string
+--- @nodiscard
 local function import_config(player, bp_string)
     local status, a, b, c = pcall(function()
-
         local to_config = function(entities)
             if not entities then return end
             local config = {}
@@ -78,23 +83,23 @@ local function import_config(player, bp_string)
                     if ent.items then
                         for module, amount in pairs(ent.items) do
                             for _ = 1, amount do
-                                modules[table_size(modules)+1] = module
+                                modules[table_size(modules) + 1] = module
                             end
                         end
                     end
-                    config[config_index] = {cTable = ent.items or {}, from = ent.name, to = modules}
+                    config[config_index] = { cTable = ent.items or {}, from = ent.name, to = modules }
                 end
             end
             for i = 1, START_SIZE do
                 if not config[i] then
-                    config[i] = {cTable = {}, to = {}}
+                    config[i] = { cTable = {}, to = {} }
                 end
             end
             return config
         end
 
         local inventory = game.create_inventory(1)
-        inventory.insert{name = "blueprint"}
+        inventory.insert { name = "blueprint" }
         local stack = inventory[1]
         local result = stack.import_stack(bp_string)
         if result ~= 0 then return result end
@@ -105,20 +110,20 @@ local function import_config(player, bp_string)
             inventory.destroy()
             return result, config, name
         elseif stack.type == "blueprint-book" then
-            local pstorage = {}
+            local presets = {}
             local name, item
             local book_inventory = stack.get_inventory(defines.inventory.item_main)
             for i = 1, #book_inventory do
                 item = book_inventory[i]
                 name = item.label or "ModuleInserter Configuration"
-                pstorage[name] = to_config(item.get_blueprint_entities())
+                presets[name] = to_config(item.get_blueprint_entities())
             end
-            return result, pstorage
+            return result, presets
         end
     end)
     if not status then
         player.print("Import failed: " .. a)
-        return false
+        return 2
     else
         return a, b, c
     end
@@ -288,13 +293,13 @@ function mi_gui.update_main_button(player)
     local visible = not player.mod_settings["module_inserter_hide_button"].value
     local style = player.mod_settings["module_inserter_button_style"].value --[[@as string]]
     if not button or not button.valid then
-        gui.add(button_flow, {{
+        gui.add(button_flow, { {
             type = "sprite-button",
             name = "module_inserter_config_button",
             handler = mi_gui.handlers.mod_gui_button.toggle,
             style = style,
             sprite = "technology/modules"
-        }})
+        } })
         button = button_flow.module_inserter_config_button
     end
     button.style = style
@@ -313,7 +318,7 @@ function mi_gui.create(player_index)
     max_config_size = (max_config_size > START_SIZE) and max_config_size or START_SIZE
     for index = 1, max_config_size do
         if not config_tmp[index] then
-            config_tmp[index] = {to = {}, cTable = {}}
+            config_tmp[index] = { to = {}, cTable = {} }
         end
     end
     local refs = gui.add(player.gui.screen, {
@@ -328,8 +333,17 @@ function mi_gui.create(player_index)
                     type = "flow",
                     name = "titlebar_flow",
                     children = {
-                        { type = "label",        style = "frame_title",               caption = "Module Inserter",                elem_mods = { ignored_by_interaction = true } },
-                        { type = "empty-widget", style = "flib_titlebar_drag_handle", elem_mods = { ignored_by_interaction = true } },
+                        {
+                            type = "label",
+                            style = "frame_title",
+                            caption = "Module Inserter",
+                            elem_mods = { ignored_by_interaction = true },
+                        },
+                        {
+                            type = "empty-widget",
+                            style = "flib_titlebar_drag_handle",
+                            elem_mods = { ignored_by_interaction = true },
+                        },
                         {
                             type = "sprite-button",
                             style = "frame_action_button_red",
@@ -474,7 +488,7 @@ function mi_gui.create(player_index)
                                                     style = "mi_naked_scroll_pane",
                                                     style_mods = { vertically_stretchable = true, minimal_width = 222 },
                                                     name = "scroll_pane",
-                                                    children = mi_gui.templates.preset_rows(pdata.pstorage,
+                                                    children = mi_gui.templates.preset_rows(pdata.saved_presets,
                                                         pdata.last_preset)
                                                 }
                                             }
@@ -488,38 +502,40 @@ function mi_gui.create(player_index)
             }
         },
     })
-    -- TODO change how these get stored and referenced
-    refs.main = {}
-    refs.main.window = refs.main_window
-    refs.main.pin_button = refs.pin_button
-    refs.main.config_rows = refs.config_rows
-    refs.presets = {}
-    refs.presets.textfield = refs.textfield
-    refs.presets.scroll_pane = refs.scroll_pane
+    pdata.gui.main = {
+        window = refs.main_window,
+        pin_button = refs.pin_button,
+        config_rows = refs.config_rows,
+    }
+    pdata.gui.presets = {
+        textfield = refs.textfield,
+        scroll_pane = refs.scroll_pane,
+    }
 
     refs.titlebar_flow.drag_target = refs.main_window
     refs.main_window.force_auto_center()
-    pdata.gui.main = refs.main
-    pdata.gui.presets = refs.presets
     mi_gui.update_contents(pdata)
     refs.main_window.visible = false
 end
 
+--- @param pdata PlayerConfig
+--- @param player LuaPlayer
+--- @param bp_string string?
 function mi_gui.create_import_window(pdata, player, bp_string)
     local import_gui = pdata.gui.import
     if import_gui and import_gui.window and import_gui.window.valid then
         import_gui.window.destroy()
         pdata.gui.import = nil
     end
-    local refs = gui.add(player.gui.screen, {mi_gui.templates.import_export_window(bp_string)})
-    pdata.gui.import = {}
-    import_gui = pdata.gui.import
-    import_gui.window = refs.window
-    import_gui.textbox = refs.textbox
+    local refs = gui.add(player.gui.screen, { mi_gui.templates.import_export_window(bp_string) })
+    pdata.gui.import = {
+        window = refs.window,
+        textbox = refs.textbox,
+    }
 
-    refs.titlebar_flow.drag_target = import_gui.window
-    import_gui.window.force_auto_center()
-    local textbox = import_gui.textbox
+    refs.titlebar_flow.drag_target = refs.window
+    refs.window.force_auto_center()
+    local textbox = refs.textbox
     if bp_string then
         textbox.read_only = true
     end
@@ -530,9 +546,9 @@ end
 function mi_gui.shrink_rows(config_rows, c, config_tmp)
     for i = c, START_SIZE + 1, -1 do
         if config_tmp[i] then
-            if config_tmp[i-1].from then
+            if config_tmp[i - 1].from then
                 break
-            elseif not config_tmp[i].from and not config_tmp[i-1].from then
+            elseif not config_tmp[i].from and not config_tmp[i - 1].from then
                 config_rows.children[i].destroy()
                 config_tmp[i] = nil
             end
@@ -545,17 +561,17 @@ function mi_gui.shrink_rows(config_rows, c, config_tmp)
 end
 
 function mi_gui.extend_rows(config_rows, c, config_tmp)
-    if not config_rows.children[c+1] then
-        gui.add(config_rows, {mi_gui.templates.config_row(c+1)})
-        mi_gui.update_modules(config_rows.children[c+1])
-        config_tmp[c+1] = {cTable = {}, to = {}}
+    if not config_rows.children[c + 1] then
+        gui.add(config_rows, { mi_gui.templates.config_row(c + 1) })
+        mi_gui.update_modules(config_rows.children[c + 1])
+        config_tmp[c + 1] = { cTable = {}, to = {} }
         config_rows.scroll_to_bottom()
     end
 end
 
 --- @param config LuaGuiElement
---- @param slots int
---- @param modules ModuleConfig
+--- @param slots int?
+--- @param modules ModuleConfig?
 function mi_gui.update_modules(config, slots, modules)
     local module_btns = table_size(config.modules.children)
     local assembler = config.children[1].elem_value
@@ -569,37 +585,37 @@ function mi_gui.update_modules(config, slots, modules)
     modules = modules or {}
     if module_btns < slots then
         for i = module_btns + 1, slots do
-            gui.add(config.modules, {mi_gui.templates.module_button(i, nil, assembler)})
+            gui.add(config.modules, { mi_gui.templates.module_button(i, nil, assembler) })
         end
         for i = 1, slots do
             local child = config.modules.children[i]
             child.visible = true
             child.locked = false
             child.elem_value = modules[i]
-            child.tooltip = modules[i] and prototypes.item[modules[i]].localised_name or {"module-inserter-choose-module"}
+            child.tooltip = modules[i] and prototypes.item[modules[i]].localised_name or { "module-inserter-choose-module" }
         end
     else
         for i = 1, module_btns do
             local child = config.modules.children[i]
             child.elem_value = modules[i]
-            child.tooltip = modules[i] and prototypes.item[modules[i]].localised_name or {"module-inserter-choose-module"}
+            child.tooltip = modules[i] and prototypes.item[modules[i]].localised_name or { "module-inserter-choose-module" }
             child.locked = not assembler and true or false
             child.visible = i <= slots
         end
     end
 end
 
-function mi_gui.update_row(pdata, index, assembler, tooltip, slots, modules)--luacheck: ignore
+function mi_gui.update_row(pdata, index, assembler, tooltip, slots, modules) --luacheck: ignore
     local config_rows = pdata.gui.main.config_rows
     if not (config_rows and config_rows.valid) then return end
     local row = config_rows.children[index]
     if not row then
         local row_template = mi_gui.templates.config_row(index)
-        local _, first = gui.add(config_rows, {row_template})
+        local _, first = gui.add(config_rows, { row_template })
         row = first
     end
     row.assembler.elem_value = assembler
-    row.assembler.tooltip = tooltip or {"module-inserter-choose-assembler"}
+    row.assembler.tooltip = tooltip or { "module-inserter-choose-assembler" }
     mi_gui.update_modules(row, slots, modules)
 end
 
@@ -634,30 +650,36 @@ function mi_gui.update_contents(pdata, clear)
     mi_gui.shrink_rows(pdata.gui.main.config_rows, table_size(pdata.gui.main.config_rows.children), config_tmp)
 end
 
+--- @param player LuaPlayer
+--- @param pdata PlayerConfig
+--- @param name string
+--- @param config ModuleConfig
+--- @param textfield LuaGuiElement?
+--- @return boolean
 function mi_gui.add_preset(player, pdata, name, config, textfield)
     local gui_elements = pdata.gui
 
     if name == "" then
-        player.print({"module-inserter-storage-name-not-set"})
-        return
+        player.print({ "module-inserter-storage-name-not-set" })
+        return false
     end
-    if pdata.pstorage[name] then
+    if pdata.saved_presets[name] then
         if not player.mod_settings["module_inserter_overwrite"].value then
-            player.print{"module-inserter-storage-name-in-use", name}
+            player.print { "module-inserter-storage-name-in-use", name }
             if textfield then
                 textfield.select_all()
                 textfield.focus()
             end
-            return
+            return false
         else
-            pdata.pstorage[name] = table.deep_copy(config)
-            player.print{"module-inserter-storage-updated", name}
+            pdata.saved_presets[name] = table.deep_copy(config)
+            player.print { "module-inserter-storage-updated", name }
             return true
         end
     end
 
-    pdata.pstorage[name] = table.deep_copy(config)
-    gui.add(gui_elements.presets.scroll_pane, {mi_gui.templates.preset_row(name)})
+    pdata.saved_presets[name] = table.deep_copy(config)
+    gui.add(gui_elements.presets.scroll_pane, { mi_gui.templates.preset_row(name) })
     return true
 end
 
@@ -690,11 +712,12 @@ function mi_gui.destroy(pdata, player)
     pdata.gui_open = false
 end
 
+--- @param e MiEventInfo
 function mi_gui.open(e)
     local window = e.pdata.gui.main.window
-    if not(window and window.valid) then
+    if not (window and window.valid) then
         mi_gui.destroy(e.pdata, e.player)
-        mi_gui.create(e.player_index)
+        mi_gui.create(e.event.player_index)
         window = e.pdata.gui.main.window
     end
     window.visible = true
@@ -758,7 +781,7 @@ mi_gui.handlers = {
         clear_all = function(e)
             local tmp = {}
             for i = 1, START_SIZE do
-                tmp[i] = {cTable = {}, to = {}}
+                tmp[i] = { cTable = {}, to = {} }
             end
             e.pdata.config_tmp = tmp
             mi_gui.update_contents(e.pdata)
@@ -811,7 +834,8 @@ mi_gui.handlers = {
                 for k, v in pairs(config_tmp) do
                     if v.from and k ~= index and v.from == elem_value then
                         e.event.element.elem_value = nil
-                        e.player.print({"", prototypes.entity[elem_value].localised_name, " is already configured in row ", k})
+                        e.player.print({ "", prototypes.entity[elem_value].localised_name,
+                            " is already configured in row ", k })
                         return
                     end
                 end
@@ -820,15 +844,15 @@ mi_gui.handlers = {
             local c = table_size(config_tmp)
 
             if not elem_value then
-                config_tmp[index] = {cTable = {}, to = {}}
-                element.tooltip = {"module-inserter-choose-assembler"}
+                config_tmp[index] = { cTable = {}, to = {} }
+                element.tooltip = { "module-inserter-choose-assembler" }
                 mi_gui.update_modules(config_rows.children[index])
                 mi_gui.shrink_rows(config_rows, c, config_tmp)
                 return
             end
 
             element.tooltip = prototypes.entity[elem_value].localised_name
-            config_tmp[index].from = elem_value
+            config_tmp[index].from = elem_value --[[@as string]]
 
             mi_gui.update_modules(config_rows.children[index], storage.name_to_slot_count[elem_value])
             if index == c then
@@ -862,7 +886,8 @@ mi_gui.handlers = {
                         for name, effect in pairs(itemEffects) do
                             if effect > 0 and not entity_proto.allowed_effects[name] then
                                 success = false
-                                e.player.print({"inventory-restriction.cant-insert-module", proto.localised_name, entity_proto.localised_name})
+                                e.player.print({ "inventory-restriction.cant-insert-module", proto.localised_name,
+                                    entity_proto.localised_name })
                                 config.to[slot] = nil
                                 element.elem_value = nil
                                 break
@@ -873,7 +898,6 @@ mi_gui.handlers = {
                         config.to[slot] = proto.name
                     end
                 end
-
             end
             if slot == 1 and element.elem_value and e.player.mod_settings["module_inserter_fill_all"].value then
                 for i = 2, entity_proto.module_inventory_size do
@@ -891,7 +915,7 @@ mi_gui.handlers = {
         end,
         --- @param e MiEventInfo
         destroy_tool = function(e)
-            e.player.get_main_inventory().remove{name = "module-inserter", count = 1}
+            e.player.get_main_inventory().remove { name = "module-inserter", count = 1 }
             mi_gui.close(e)
         end
     },
@@ -918,7 +942,7 @@ mi_gui.handlers = {
                 local result, config, name = import_config(player, stack.export_stack())
                 if not result then return end
                 if result ~= 0 then
-                    player.print({"failed-to-import-string", name})
+                    player.print({ "failed-to-import-string", name })
                     return
                 end
                 if name then
@@ -934,16 +958,17 @@ mi_gui.handlers = {
         end,
         --- @param e MiEventInfo
         export = function(e)
-            local text = export_config(e.player, e.pdata.pstorage)
+            local text = export_config(e.player, e.pdata.saved_presets)
             if not text then return end
             if e.event.shift then
                 local stack = e.player.cursor_stack
+                if not stack then return end
                 if stack.valid_for_read then
                     e.player.print("Click with an empty cursor")
                     return
                 else
-                    if not stack.set_stack{name = "blueprint", count = 1} then
-                        e.player.print({"", {"error-while-importing-string"}, " Could not set stack"})
+                    if not stack.set_stack { name = "blueprint", count = 1 } then
+                        e.player.print({ "", { "error-while-importing-string" }, " Could not set stack" })
                         return
                     end
                     stack.import_stack(text)
@@ -956,11 +981,11 @@ mi_gui.handlers = {
     preset = {
         --- @param e MiEventInfo
         load = function(e)
-            local name = e.event.element.caption
+            local name = e.event.element.caption --[[@as string]]
             local pdata = e.pdata
             local gui_elements = pdata.gui
 
-            local preset = pdata.pstorage[name]
+            local preset = pdata.saved_presets[name]
             if not preset then return end
 
             pdata.config_tmp = table.deep_copy(preset)
@@ -972,7 +997,7 @@ mi_gui.handlers = {
             end
             for i = 1, max_index do
                 if not pdata.config_tmp[i] then
-                    pdata.config_tmp[i] = {cTable = {}, to = {}}
+                    pdata.config_tmp[i] = { cTable = {}, to = {} }
                 end
             end
             pdata.config = table.deep_copy(pdata.config_tmp)
@@ -987,13 +1012,13 @@ mi_gui.handlers = {
             mi_gui.handlers.main.apply_changes(e, keep_open)
             pdata.last_preset = name
             --mi_gui.close(player, pdata)
-            e.player.print{"module-inserter-storage-loaded", name}
+            e.player.print { "module-inserter-storage-loaded", name }
         end,
         --- @param e MiEventInfo
         export = function(e)
             local pdata = e.pdata
             local name = e.event.element.parent.children[1].caption
-            local config = pdata.pstorage[name]
+            local config = pdata.saved_presets[name]
             if not config or not name or name == "" then
                 e.player.print("Preset " .. name .. "not found")
                 return
@@ -1001,14 +1026,15 @@ mi_gui.handlers = {
 
             local text = export_config(e.player, config, name)
             if not text then return end
-            if e.shift then
+            if e.event.shift then
                 local stack = e.player.cursor_stack
+                if not stack then return end
                 if stack.valid_for_read then
                     e.player.print("Click with an empty cursor")
                     return
                 else
-                    if not stack.set_stack{name = "blueprint", count = 1} then
-                        e.player.print({"", {"error-while-importing-string"}, " Could not set stack"})
+                    if not stack.set_stack { name = "blueprint", count = 1 } then
+                        e.player.print({ "", { "error-while-importing-string" }, " Could not set stack" })
                         return
                     end
                     stack.import_stack(text)
@@ -1022,7 +1048,7 @@ mi_gui.handlers = {
             local name = e.event.element.parent.children[1].caption --[[@as string]]
             local pdata = e.pdata
             local parent = e.event.element.parent --[[@as LuaGuiElement]]
-            pdata.pstorage[name] = nil
+            pdata.saved_presets[name] = nil
             parent.destroy()
         end
     },
@@ -1035,7 +1061,7 @@ mi_gui.handlers = {
             local result, config, name = import_config(player, text_box.text)
             if not result then return end
             if result ~= 0 then
-                player.print({"failed-to-import-string", name})
+                player.print({ "failed-to-import-string", name })
                 return
             end
             if name then
