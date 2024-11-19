@@ -2,71 +2,14 @@ local gui = require("__flib__.gui")
 local migration = require("__flib__.migration")
 local mi_gui = require("scripts.gui")
 local table = require("__flib__.table")
+local types = require("scripts.types")
 
 local lib = require("__ModuleInserterEx__/lib_control")
 local debugDump = lib.debugDump
 
--- GlobalData
---- @class GlobalData
---- @field to_create {[int]:{[int]:ToCreateData}}
---- @field name_to_slot_count {[string]:int} Name of all entities mapped to their module slot count
---- @field module_entities string[] all entities that have valid module slots
---- @field _pdata {[int]:PlayerConfig}
-storage = {}
+--- @type GlobalData
+storage = {} ---@diagnostic disable-line: missing-fields
 
---- @class PlayerConfig
---- @field last_preset string
---- @field config ModuleConfig[]
---- @field config_tmp ModuleConfig[]
---- @field saved_presets SavedPresets
---- @field gui PlayerGui
---- @field gui_open boolean
---- @field pinned boolean Is the gui pinned
---- @field config_by_entity ConfigByEntity
---- @field cursor boolean True when the module inserter item is in this players cursor
-
-
---- @alias SavedPresets {string:ModuleConfig[]}
-
---- @alias ConfigByEntity {[string]: ModuleConfig}
-
---- @class PlayerGui
---- @field main PlayerGuiMain
---- @field presets PlayerGuiPresets
---- @field import PlayerGuiImport?
-
---- @class PlayerGuiMain
---- @field window LuaGuiElement
---- @field pin_button LuaGuiElement
---- @field config_rows LuaGuiElement
-
---- @class PlayerGuiPresets
---- @field textfield LuaGuiElement
---- @field scroll_pane LuaGuiElement
-
---- @class PlayerGuiImport
---- @field textbox LuaGuiElement
---- @field window LuaGuiElement
-
-
---- @class ModuleConfig
---- @field from string? the entity name this applies to
---- @field to string[] array of module slot indexes to the module in that slot
---- @field cTable CTable modules mapped to their count
-
---- @alias CTable {[string]:int}
-
-
---- @class MiEventInfo
---- @field event flib.GuiEventData
---- @field player LuaPlayer
---- @field pdata PlayerConfig
-
---- @class ToCreateData
---- @field entity LuaEntity
---- @field modules string[]
---- @field player LuaPlayer
---- @field surface LuaSurface
 
 local inventory_defines_map = {
     ["furnace"] = defines.inventory.furnace_modules,
@@ -133,12 +76,6 @@ script.on_event("mi-confirm-gui", function(e)
         mi_gui.handlers.main.apply_changes(me)
     end
 end)
-
-local function print_planner(planner)--luacheck: ignore
-    for i = 1, 4 do
-        log(serpent.line(planner.get_mapper(i, "from")) .. serpent.line(planner.get_mapper(i, "to")))
-    end
-end
 
 --- @param module_name string
 --- @param stack_index int
@@ -230,10 +167,8 @@ end
 local function delayed_creation(e)
     local current = storage.to_create[e.tick]
     if current then
-        local ent
         for _, data in pairs(current) do
-            ent = data.entity
-            if ent and ent.valid then
+            if data.entity and data.entity.valid then
                 create_request_proxy(data)
             end
         end
@@ -261,13 +196,13 @@ local function conditional_events(check)
 end
 
 --- @param recipe LuaRecipe
---- @param modules table
+--- @param modules ModuleConfig
 local function modules_allowed(recipe, modules)
     -- TODO really not sure what the checks here should be
     -- TODO also add the entity in this check?
     -- TODO may want to cache this result?
     if recipe.prototype.allowed_module_categories then
-        for module, _ in pairs(modules) do
+        for _, module in pairs(modules.module_list) do
             local category = prototypes.item[module].category
             if not recipe.prototype.allowed_module_categories[category] then
                 return false
@@ -275,7 +210,7 @@ local function modules_allowed(recipe, modules)
         end
     end
     if recipe.prototype.allowed_effects then
-        for module, _ in pairs(modules) do
+        for _, module in pairs(modules.module_list) do
             for effect_name, effect_num in pairs(prototypes.item[module].module_effects) do
                 if effect_num > 0 and not recipe.prototype.allowed_effects[effect_name] then
                     return false
@@ -286,6 +221,7 @@ local function modules_allowed(recipe, modules)
     return true
 end
 
+---@param e EventData.on_player_selected_area
 local function on_player_selected_area(e)
     local status, err = pcall(function()
         local player_index = e.player_index
@@ -303,20 +239,19 @@ local function on_player_selected_area(e)
         local delay = e.tick --[[@as uint]]
         local max_proxies = settings.global["module_inserter_proxies_per_tick"].value
         local message = nil
-        local default_config = config["mi-default-proxy-machine"]
         for i, entity in pairs(e.entities) do
-            entity = entity --[[@as LuaEntity]]
-            --remove existing proxies if we have a config for its target
-            if entity.name == "item-request-proxy" then
-                target = entity.proxy_target
-                if target and target.valid and (config[target.name] or default_config) then -- also check config.default
-                    entity.destroy{raise_destroy = true}
-                end
-                goto continue
-            end
 
             --skip the entity if it is a tile ghost
             if entity.type == "tile-ghost" then
+                goto continue
+            end
+
+            --remove existing proxies if we have a config for its target
+            if entity.name == "item-request-proxy" then
+                target = entity.proxy_target
+                if target and target.valid and (config[target.name] or (pdata.config.use_default and pdata.config.default)) then
+                    entity.destroy{raise_destroy = true}
+                end
                 goto continue
             end
 
@@ -326,44 +261,31 @@ local function on_player_selected_area(e)
                 return entity[field]
             end
 
-            local entity_configs = config[ent_prop("name")]
-            if not entity_configs then
-                if not default_config then
-                    goto continue
-                else
-                    entity_configs = table.deep_copy(default_config)
-                    for _, e_config in pairs(entity_configs) do
-                        local ent_slots = ent_prop("prototype").module_inventory_size
-                        if ent_slots < #e_config.to then
-                            for m = ent_slots + 1, #e_config.to do
-                                e_config.to[m] = nil
-                            end
-                            e_config.cTable = {}
-                            for _, module in pairs(e_config.to) do
-                                if module then
-                                    e_config.cTable[module] = (e_config.cTable[module] or 0) + 1
-                                end
-                            end
-                        end
-                    end
-                end
+            local module_config_set = config[ent_prop("name")]
+            if not module_config_set and pdata.config.use_default then
+                module_config_set = pdata.config.default
+            end
+            if not module_config_set then
+                goto continue
             end
 
 
             ent_type = ent_prop("type")
             local recipe = ent_type == "assembling-machine" and entity.get_recipe()
+            --- @type ModuleConfig?
             local entity_config = nil
+            -- add checks for the assembler type, in case this is the default config
             if recipe then
-                for _, e_config in pairs(entity_configs) do
-                    if modules_allowed(recipe, e_config.cTable) then
+                for _, e_config in pairs(module_config_set.configs) do
+                    if modules_allowed(recipe, e_config) then
                         entity_config = e_config
                         break
                     else
-                        message = "item-limitation.production-module-usable-only-on-intermediates"
+                        message = "item-limitation.production-module-usable-only-on-intermediates" -- TODO change to the proper one
                     end
                 end
             else
-                entity_config = entity_configs[1]
+                entity_config = module_config_set.configs[1]
             end
             if entity_config then
                 if (i % max_proxies == 0) then
@@ -372,7 +294,7 @@ local function on_player_selected_area(e)
                 if not storage.to_create[delay] then storage.to_create[delay] = {} end
                 storage.to_create[delay][entity.unit_number --[[@as int]]] = {
                     entity = entity,
-                    modules = table.shallow_copy(entity_config.to),
+                    modules = table.shallow_copy(entity_config.module_list),
                     player = player,
                     surface = surface,
                 }
@@ -390,6 +312,7 @@ local function on_player_selected_area(e)
     end
 end
 
+---@param e EventData.on_player_alt_selected_area
 local function on_player_alt_selected_area(e)
     local status, err = pcall(function()
         if not e.item == "module-inserter" then return end
@@ -408,6 +331,7 @@ local function on_player_alt_selected_area(e)
     end
 end
 
+---@param e EventData.on_player_reverse_selected_area
 local function on_player_reverse_selected_area(e)
     local status, err = pcall(function()
         local player_index = e.player_index
@@ -453,10 +377,12 @@ end
 local function create_lookup_tables()
     storage.name_to_slot_count = {}
     storage.module_entities = {}
+    storage.max_slot_count = 0
     local i = 1
     for name, prototype in pairs(prototypes.entity) do
         if prototype.module_inventory_size and prototype.module_inventory_size > 0 and not se_grounded_entity(name) then
             storage.name_to_slot_count[name] = prototype.module_inventory_size
+            storage.max_slot_count = math.max(storage.max_slot_count, prototype.module_inventory_size)
             storage.module_entities[i] = name
             i = i + 1
         end
@@ -468,21 +394,30 @@ local function remove_invalid_items()
     local entities = prototypes.entity
     local removed_entities = {}
     local removed_modules = {}
+
+    --- @param tbl PresetConfig
     local function _remove(tbl)
-        for _, config in pairs(tbl) do
+        -- TODO shrink the default config if needed
+        --- @param module_config ModuleConfigSet
+        local function _clean_module_config(module_config)
+            for _, mc in pairs(module_config.configs) do
+                for i, m in pairs(mc.module_list) do
+                    if m and not items[m] then
+                        mc.module_list[i] = nil
+                        mc.cTable[m] = nil
+                        removed_modules[m] = true
+                    end
+                end
+            end
+        end
+        _clean_module_config(tbl.default)
+        for _, config in pairs(tbl.rows) do
             if (config.from or config.from == false) and not entities[config.from] then
                 removed_entities[config.from] = true
                 config.from = nil
-                config.to = {}
-                config.cTable = {}
+                config.module_configs = types.make_module_config_set()
             end
-            for k, m in pairs(config.to) do
-                if m and not items[m] then
-                    config.to[k] = nil
-                    config.cTable[m] = nil
-                    removed_modules[config.from] = true
-                end
-            end
+            _clean_module_config(config.module_configs)
         end
     end
     for _, pdata in pairs(storage._pdata) do
@@ -495,7 +430,7 @@ local function remove_invalid_items()
         end
     end
     for k in pairs(removed_entities) do
-        log("Module Inserter: Removed configuration for " ..k)
+        log("Module Inserter: Removed Entity " .. k .. " from all configurations")
     end
     for k in pairs(removed_modules) do
         log("Module Inserter: Removed module " .. k .. " from all configurations")
@@ -513,8 +448,8 @@ local function init_player(i)
     local pdata = storage._pdata[i] or {}
     storage._pdata[i] = {
         last_preset = pdata.last_preset or "",
-        config = pdata.config or {},
-        config_tmp = pdata.config_tmp or {},
+        config = pdata.config or types.make_preset_config(),
+        config_tmp = pdata.config_tmp or types.make_preset_config(),
         config_by_entity = pdata.config_by_entity or {},
         saved_presets = pdata.saved_presets or {},
         gui = pdata.gui or {},
@@ -550,10 +485,9 @@ script.on_configuration_changed(function(e)
     remove_invalid_items()
     if migration.on_config_changed(e, migrations) then
         for pi, pdata in pairs(storage._pdata) do
-            mi_gui.destroy(pdata, game.get_player(pi))
+            mi_gui.destroy(pdata, game.get_player(pi) --[[@as LuaPlayer]])
             mi_gui.create(pi)
         end
-
     end
     conditional_events(true)
 end)

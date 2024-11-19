@@ -1,11 +1,13 @@
-local START_SIZE = 10
+local START_SIZE = 5
 local mod_gui = require("__core__.lualib.mod-gui")
 local table = require("__flib__.table")
 local gui = require("__flib__.gui")
 local import_export = require("scripts.import_export")
+local types = require("scripts.types")
 
 local mi_gui = {}
 mi_gui.templates = {
+    --- @return flib.GuiElemDef
     assembler_button = function(assembler)
         return {
             type = "choose-elem-button",
@@ -19,7 +21,11 @@ mi_gui.templates = {
             tooltip = assembler and prototypes.entity[assembler].localised_name or { "module-inserter-choose-assembler" }
         }
     end,
-    module_button = function(index, module, assembler)
+
+    --- @param index int
+    --- @return flib.GuiElemDef
+    module_button = function(index)
+        -- TODO This could be filtered based on the current assembler to only valid modules (e.g. hide productivity for beacons)
         return {
             type = "choose-elem-button",
             style = "slot_button",
@@ -27,49 +33,58 @@ mi_gui.templates = {
             handler = { [defines.events.on_gui_elem_changed] = mi_gui.handlers.main.choose_module },
             elem_type = "item",
             elem_filters = { { filter = "type", type = "module" } },
-            item = module,
-            locked = not assembler and true or false,
-            tooltip = module and prototypes.item[module].localised_name or { "module-inserter-choose-module" }
         }
     end,
+
+    --- @param slots int
+    --- @param name string? Name to give this gui element
+    --- @return flib.GuiElemDef
+    module_row = function(slots, name)
+        local module_table = {
+            type = "table",
+            column_count = 10,
+            name = name or "modules",
+            children = {},
+            style_mods = {
+                margin = 0,
+                padding = 0,
+                horizontal_spacing = 0,
+                vertical_spacing = 0
+            }
+        }
+        for m = 1, slots do
+            module_table.children[m] = mi_gui.templates.module_button(m)
+        end
+        return module_table
+    end,
+
+    --- @param index int config row index for this row
+    --- @param config RowConfig?
+    --- @return flib.GuiElemDef
     config_row = function(index, config)
-        config = config or {}
-        local assembler = config.from
-        local slots = assembler and storage.name_to_slot_count[assembler] or 0
-        local modules = config.to or {}
-        local row = {
+        return {
             type = "flow",
             direction = "horizontal",
             name = index,
             style_mods = { horizontal_spacing = 0 },
             children = {
-                mi_gui.templates.assembler_button(assembler),
-                {
-                    type = "table",
-                    column_count = 10,
-                    name = "modules",
-                    children = {},
-                    style_mods = {
-                        margin = 0,
-                        padding = 0,
-                        horizontal_spacing = 0,
-                        vertical_spacing = 0
-                    }
-                }
+                mi_gui.templates.assembler_button(config and config.from or nil),
             }
         }
-        for m = 1, slots do
-            row.children[2].children[m] = mi_gui.templates.module_button(m, modules[m], assembler)
-        end
-        return row
     end,
+
+    --- @param n int row count
+    --- @param config_tmp PresetConfig
+    --- @return flib.GuiElemDef
     config_rows = function(n, config_tmp)
         local config_rows = {}
         for index = 1, n do
-            config_rows[index] = mi_gui.templates.config_row(index, config_tmp[index])
+            config_rows[index] = mi_gui.templates.config_row(index, config_tmp.rows[index])
         end
         return config_rows
     end,
+
+    --- @return flib.GuiElemDef
     preset_row = function(name, selected)
         return {
             type = "flow",
@@ -97,6 +112,8 @@ mi_gui.templates = {
             }
         }
     end,
+
+    --- @return flib.GuiElemDef
     preset_rows = function(presets, selected)
         local preset_rows = {}
         local i = 1
@@ -107,9 +124,13 @@ mi_gui.templates = {
         return preset_rows
     end,
     pushers = {
+        --- @return flib.GuiElemDef
         horizontal = { type = "empty-widget", style_mods = { horizontally_stretchable = true } },
+        --- @return flib.GuiElemDef
         vertical = { type = "empty-widget", style_mods = { vertically_stretchable = true } }
     },
+
+    --- @return flib.GuiElemDef
     import_export_window = function(bp_string)
         local caption = bp_string and { "gui.export-to-string" } or { "gui-blueprint-library.import-string" }
         local button_caption = bp_string and { "gui.close" } or { "gui-blueprint-library.import" }
@@ -189,17 +210,16 @@ function mi_gui.create(player_index)
     local config_tmp = table.deep_copy(pdata.config)
     pdata.config_tmp = config_tmp
 
-    local max_config_size = table_size(config_tmp)
-    max_config_size = (max_config_size > START_SIZE) and max_config_size or START_SIZE
-    for index = 1, max_config_size do
-        if not config_tmp[index] then
-            config_tmp[index] = { to = {}, cTable = {} }
+    local config_row_count = math.max(table_size(config_tmp.rows), START_SIZE)
+    for index = 1, config_row_count do
+        if not config_tmp.rows[index] then
+            config_tmp.rows[index] = types.make_row_config()
         end
     end
     local refs = gui.add(player.gui.screen, {
         {
             type = "frame",
-            style_mods = { maximal_height = 650 },
+            style_mods = { maximal_height = 650 }, ---@diagnostic disable-line: missing-fields
             direction = "vertical",
             handler = { [defines.events.on_gui_closed] = mi_gui.handlers.main.close_window },
             name = "main_window",
@@ -212,12 +232,12 @@ function mi_gui.create(player_index)
                             type = "label",
                             style = "frame_title",
                             caption = "Module Inserter",
-                            elem_mods = { ignored_by_interaction = true },
+                            elem_mods = { ignored_by_interaction = true }, ---@diagnostic disable-line: missing-fields
                         },
                         {
                             type = "empty-widget",
                             style = "flib_titlebar_drag_handle",
-                            elem_mods = { ignored_by_interaction = true },
+                            elem_mods = { ignored_by_interaction = true }, ---@diagnostic disable-line: missing-fields
                         },
                         {
                             type = "sprite-button",
@@ -265,7 +285,7 @@ function mi_gui.create(player_index)
                                         {
                                             type = "sprite-button",
                                             style = "tool_button_green",
-                                            style_mods = { padding = 0 },
+                                            style_mods = { padding = 0 }, ---@diagnostic disable-line: missing-fields
                                             handler = mi_gui.handlers.main.apply_changes,
                                             sprite = "utility/check_mark_white",
                                             tooltip = { "module-inserter-config-button-apply" }
@@ -282,19 +302,53 @@ function mi_gui.create(player_index)
                                 {
                                     type = "flow",
                                     direction = "vertical",
-                                    style_mods = { padding = 12, top_padding = 8, vertical_spacing = 10 },
+                                    style_mods = { padding = 12 }, ---@diagnostic disable-line: missing-fields
                                     children = {
                                         {
                                             type = "frame",
                                             style = "deep_frame_in_shallow_frame",
-                                            style_mods = { horizontally_stretchable = true, minimal_height = 444 },
+                                            style_mods = { horizontally_stretchable = true, minimal_height = 66 }, ---@diagnostic disable-line: missing-fields
+                                            children = {
+                                                {
+                                                    type = "flow",
+                                                    direction = "horizontal",
+                                                    name = "default_row",
+                                                    style_mods = { horizontal_spacing = 0 }, ---@diagnostic disable-line: missing-fields
+                                                    children = {
+                                                        {
+                                                            type = "checkbox",
+                                                            name = "default_checkbox",
+                                                            caption = "Use Default",
+                                                            state = false,
+                                                            style_mods = { right_margin = 6 }, ---@diagnostic disable-line: missing-fields
+                                                            handler = { [defines.events.on_gui_checked_state_changed] = mi_gui.handlers.main.default_checkbox },
+                                                            elem_type = "entity",
+                                                            elem_filters = { { filter = "name", name = storage.module_entities } },
+                                                            tooltip = "If checked, will fill any entities without a more specific row with the modules here", -- TODO move text string to locale
+                                                        },
+                                                        mi_gui.templates.module_row(storage.max_slot_count, "default_modules"),
+                                                    }
+                                                }
+                                            }
+                                        },
+                                    }
+                                },
+                                {
+                                    type = "flow",
+                                    direction = "vertical",
+                                    style_mods = { padding = 12, top_padding = 8, vertical_spacing = 10 }, ---@diagnostic disable-line: missing-fields
+                                    children = {
+                                        {
+                                            type = "frame",
+                                            style = "deep_frame_in_shallow_frame",
+                                            style_mods = { horizontally_stretchable = true, minimal_height = 444 }, ---@diagnostic disable-line: missing-fields
                                             children = {
                                                 {
                                                     type = "scroll-pane",
                                                     style = "mi_naked_scroll_pane",
                                                     name = "config_rows",
-                                                    style_mods = { minimal_width = 374 },
-                                                    children = mi_gui.templates.config_rows(max_config_size, config_tmp)
+                                                    style_mods = { minimal_width = 374 }, ---@diagnostic disable-line: missing-fields
+                                                    children = mi_gui.templates.config_rows(START_SIZE, config_tmp)
                                                 }
                                             }
                                         }
@@ -332,7 +386,7 @@ function mi_gui.create(player_index)
                                 {
                                     type = "flow",
                                     direction = "vertical",
-                                    style_mods = { width = 246, padding = 12, top_padding = 8, vertical_spacing = 10 },
+                                    style_mods = { width = 246, padding = 12, top_padding = 8, vertical_spacing = 10 }, ---@diagnostic disable-line: missing-fields
                                     children = {
                                         {
                                             type = "flow",
@@ -341,7 +395,7 @@ function mi_gui.create(player_index)
                                                 {
                                                     type = "textfield",
                                                     text = pdata.last_preset,
-                                                    style_mods = { width = 150 },
+                                                    style_mods = { width = 150 }, ---@diagnostic disable-line: missing-fields
                                                     name = "textfield",
                                                     handler = { [defines.events.on_gui_click] = mi_gui.handlers.presets.textfield },
                                                 },
@@ -361,7 +415,7 @@ function mi_gui.create(player_index)
                                                 {
                                                     type = "scroll-pane",
                                                     style = "mi_naked_scroll_pane",
-                                                    style_mods = { vertically_stretchable = true, minimal_width = 222 },
+                                                    style_mods = { vertically_stretchable = true, minimal_width = 222 }, ---@diagnostic disable-line: missing-fields
                                                     name = "scroll_pane",
                                                     children = mi_gui.templates.preset_rows(pdata.saved_presets,
                                                         pdata.last_preset)
@@ -381,6 +435,8 @@ function mi_gui.create(player_index)
         window = refs.main_window,
         pin_button = refs.pin_button,
         config_rows = refs.config_rows,
+        default_checkbox = refs.default_checkbox,
+        default_modules = refs.default_modules,
     }
     pdata.gui.presets = {
         textfield = refs.textfield,
@@ -435,52 +491,48 @@ function mi_gui.shrink_rows(config_rows, c, config_tmp)
     end
 end
 
+--- @param config_rows LuaGuiElement
+--- @param c int row index
+--- @param config_tmp PresetConfig
 function mi_gui.extend_rows(config_rows, c, config_tmp)
     if not config_rows.children[c + 1] then
         gui.add(config_rows, { mi_gui.templates.config_row(c + 1) })
-        mi_gui.update_modules(config_rows.children[c + 1])
-        config_tmp[c + 1] = { cTable = {}, to = {} }
+        config_tmp.rows[c + 1] = types.make_row_config()
         config_rows.scroll_to_bottom()
     end
 end
 
---- @param config LuaGuiElement
---- @param slots int?
---- @param modules ModuleConfig?
-function mi_gui.update_modules(config, slots, modules)
-    local module_btns = table_size(config.modules.children)
-    local assembler = config.children[1].elem_value
-    if not assembler then
-        for _, btn in pairs(config.modules.children) do
-            btn.destroy()
-        end
-        return
-    end
+--- @param module_row LuaGuiElement
+--- @param slots int
+--- @param modules ModuleConfigSet
+function mi_gui.update_modules(module_row, slots, modules)
+    local module_btns = table_size(module_row.children)
     slots = slots or 0
-    modules = modules or {}
+    local module_list = modules and modules.configs[1] and modules.configs[1].module_list or {}
     if module_btns < slots then
         for i = module_btns + 1, slots do
-            gui.add(config.modules, { mi_gui.templates.module_button(i, nil, assembler) })
+            gui.add(module_row, { mi_gui.templates.module_button(i) })
         end
-        for i = 1, slots do
-            local child = config.modules.children[i]
-            child.visible = true
-            child.locked = false
-            child.elem_value = modules[i]
-            child.tooltip = modules[i] and prototypes.item[modules[i]].localised_name or { "module-inserter-choose-module" }
+    elseif module_btns > slots then
+        for i = slots + 1, module_btns do
+            local child = module_row.children[i]
+            child.destroy()
         end
-    else
-        for i = 1, module_btns do
-            local child = config.modules.children[i]
-            child.elem_value = modules[i]
-            child.tooltip = modules[i] and prototypes.item[modules[i]].localised_name or { "module-inserter-choose-module" }
-            child.locked = not assembler and true or false
-            child.visible = i <= slots
-        end
+    end
+    for i = 1, slots do
+        local child = module_row.children[i]
+        child.visible = true
+        child.elem_value = module_list[i]
+        child.tooltip = module_list[i] and prototypes.item[module_list[i]].localised_name or { "module-inserter-choose-module" }
     end
 end
 
-function mi_gui.update_row(pdata, index, assembler, tooltip, slots, modules) --luacheck: ignore
+--- @param pdata PlayerConfig
+--- @param row_config RowConfig
+--- @param index int
+function mi_gui.update_row(pdata, row_config, index)
+    local assembler = row_config.from
+
     local config_rows = pdata.gui.main.config_rows
     if not (config_rows and config_rows.valid) then return end
     local row = config_rows.children[index]
@@ -490,34 +542,40 @@ function mi_gui.update_row(pdata, index, assembler, tooltip, slots, modules) --l
         row = first
     end
     row.assembler.elem_value = assembler
-    row.assembler.tooltip = tooltip or { "module-inserter-choose-assembler" }
-    mi_gui.update_modules(row, slots, modules)
+    row.assembler.tooltip = assembler and prototypes.entity[assembler] and prototypes.entity[assembler].localised_name or { "module-inserter-choose-assembler" }
+
+    if not assembler then
+        -- No assembler, delete the module section
+        if row.modules then
+            row.modules.destroy()
+        end
+    else
+        local slots = storage.name_to_slot_count[row_config.from]
+        -- Create and update the module section
+        if not row.modules or not row.modules.valid then
+            gui.add(row, mi_gui.templates.module_row(slots))
+        end
+        mi_gui.update_modules(row.modules, slots, row_config.module_configs)
+    end
 end
 
+--- @param pdata PlayerConfig
+--- @param clear boolean?
 function mi_gui.update_contents(pdata, clear)
     local config_tmp = pdata.config_tmp
-    local assembler, assembler_proto, tooltip
-    local slots, modules
-    local index = 0
 
     if clear then
         pdata.gui.main.config_rows.clear()
     end
 
-    for _, config in pairs(config_tmp) do
-        if config.from then
-            assembler = config.from
-            assembler_proto = assembler and prototypes.entity[assembler]
-            tooltip = assembler_proto and assembler_proto.localised_name
-            slots = storage.name_to_slot_count[config.from]
-            modules = config.to
-        else
-            assembler, tooltip, slots, modules = nil, nil, nil, nil
-        end
-        index = index + 1
-        mi_gui.update_row(pdata, index, assembler, tooltip, slots, modules)
-    end
+    pdata.gui.main.default_checkbox.state = config_tmp.use_default
+    mi_gui.update_modules(pdata.gui.main.default_modules, storage.max_slot_count, config_tmp.default)
 
+    local index = 0
+    for _, row_config in pairs(config_tmp.rows) do
+        index = index + 1
+        mi_gui.update_row(pdata, row_config, index)
+    end
     for i = index, math.max(index, START_SIZE) do
         mi_gui.extend_rows(pdata.gui.main.config_rows, i, config_tmp)
     end
@@ -528,7 +586,7 @@ end
 --- @param player LuaPlayer
 --- @param pdata PlayerConfig
 --- @param name string
---- @param config ModuleConfig
+--- @param config PresetConfig
 --- @param textfield LuaGuiElement?
 --- @return boolean
 function mi_gui.add_preset(player, pdata, name, config, textfield)
@@ -569,6 +627,8 @@ function mi_gui.update_presets(pdata, selected_preset)
     end
 end
 
+--- @param pdata PlayerConfig
+--- @param player LuaPlayer
 function mi_gui.destroy(pdata, player)
     local main_gui = pdata.gui.main
     if main_gui and main_gui.window and main_gui.window.valid then
@@ -589,7 +649,7 @@ end
 
 --- @param e MiEventInfo
 function mi_gui.open(e)
-    local window = e.pdata.gui.main.window
+    local window = e.pdata.gui and e.pdata.gui.main and e.pdata.gui.main.window
     if not (window and window.valid) then
         mi_gui.destroy(e.pdata, e.player)
         mi_gui.create(e.event.player_index)
@@ -624,6 +684,7 @@ function mi_gui.toggle(e)
     if e.pdata.gui_open then
         mi_gui.close(e)
     else
+        mi_gui.destroy(e.pdata, e.player)
         mi_gui.open(e)
     end
 end
@@ -636,27 +697,28 @@ mi_gui.handlers = {
         --- @param e MiEventInfo
         apply_changes = function(e, keep_open)
             e.pdata.config = table.deep_copy(e.pdata.config_tmp)
-            local config_by_entity = {}
-            for _, config in pairs(e.pdata.config) do
+            --- @type ConfigByEntity
+            e.pdata.config_by_entity = {}
+            for _, config in pairs(e.pdata.config.rows) do
                 if config.from then
-                    config_by_entity[config.from] = config_by_entity[config.from] or {}
-                    config_by_entity[config.from][table_size(config_by_entity[config.from]) + 1] = {
-                        to = config.to,
-                        cTable = config.cTable,
-                    }
+                    e.pdata.config_by_entity[config.from] = table.deep_copy(config.module_configs)
                 end
             end
-            e.pdata.config_by_entity = config_by_entity
-            --log(serpent.block(config_by_entity))
+            --log(serpent.block(e.pdata.config_by_entity))
             if not keep_open then
                 mi_gui.close(e)
             end
         end,
         --- @param e MiEventInfo
+        default_checkbox = function(e)
+            e.pdata.config_tmp.use_default = e.pdata.gui.main.default_checkbox.state
+            mi_gui.update_contents(e.pdata)
+        end,
+        --- @param e MiEventInfo
         clear_all = function(e)
-            local tmp = {}
+            local tmp = types.make_preset_config()
             for i = 1, START_SIZE do
-                tmp[i] = { cTable = {}, to = {} }
+                tmp.rows[i] = types.make_row_config()
             end
             e.pdata.config_tmp = tmp
             mi_gui.update_contents(e.pdata)
@@ -701,12 +763,12 @@ mi_gui.handlers = {
             if not element then return end
             local elem_value = element.elem_value
 
-            if elem_value == config_tmp[index].from then
+            if elem_value == config_tmp.rows[index].from then
                 return
             end
 
             if elem_value then
-                for k, v in pairs(config_tmp) do
+                for k, v in pairs(config_tmp.rows) do
                     if v.from and k ~= index and v.from == elem_value then
                         e.event.element.elem_value = nil
                         e.player.print({ "", prototypes.entity[elem_value].localised_name,
@@ -716,20 +778,16 @@ mi_gui.handlers = {
                 end
             end
 
-            local c = table_size(config_tmp)
+            local c = table_size(config_tmp.rows)
 
             if not elem_value then
-                config_tmp[index] = { cTable = {}, to = {} }
-                element.tooltip = { "module-inserter-choose-assembler" }
-                mi_gui.update_modules(config_rows.children[index])
+                config_tmp.rows[index] = types.make_row_config()
                 mi_gui.shrink_rows(config_rows, c, config_tmp)
-                return
+            else
+                config_tmp.rows[index].from = elem_value --[[@as string]]
             end
 
-            element.tooltip = prototypes.entity[elem_value].localised_name
-            config_tmp[index].from = elem_value --[[@as string]]
-
-            mi_gui.update_modules(config_rows.children[index], storage.name_to_slot_count[elem_value])
+            mi_gui.update_row(e.pdata, config_tmp.rows[index], index)
             if index == c then
                 mi_gui.extend_rows(config_rows, c, config_tmp)
             end
@@ -743,19 +801,32 @@ mi_gui.handlers = {
             if not config_tmp then return end
             local config_rows = e.pdata.gui.main.config_rows
             if not (config_rows and config_rows.valid) then return end
-            local index = tonumber(element.parent.parent.name)
             local slot = tonumber(element.name)
             if not slot then return end
-            local config = config_tmp[index]
 
-            local entity_proto = config.from and prototypes.entity[config.from]
-            if not entity_proto then return end
+            --- @type ModuleConfigSet
+            local module_config_set
+            local entity_proto = nil
+            local index = nil
+            local row_config = nil
+            if element.parent.parent.name == "default_row" then
+                module_config_set = config_tmp.default
+            else
+                index = tonumber(element.parent.parent.name)
+                if not index then return end
+                row_config = config_tmp.rows[index]
+                module_config_set = row_config.module_configs -- TODO when implementing multiple module configs per row, need to update this
+                entity_proto = row_config.from and prototypes.entity[row_config.from]
+                if not entity_proto then return end
+            end
 
-            config.to[slot] = element.elem_value --[[@as string]]
-            if element.elem_value then
+            local module_config = module_config_set.configs[1]
+            module_config.module_list[slot] = element.elem_value --[[@as string]]
+            if element.elem_value and row_config and row_config.from then
+                -- If a normal row with an assembler selected, check if the module is valid
                 local proto = prototypes.item[element.elem_value]
                 local success = true
-                if proto and config.from then
+                if proto then
                     local itemEffects = proto.module_effects
                     if entity_proto and itemEffects then
                         for name, effect in pairs(itemEffects) do
@@ -763,30 +834,35 @@ mi_gui.handlers = {
                                 success = false
                                 e.player.print({ "inventory-restriction.cant-insert-module", proto.localised_name,
                                     entity_proto.localised_name })
-                                config.to[slot] = nil
+                                    module_config[slot] = nil
                                 element.elem_value = nil
                                 break
                             end
                         end
                     end
                     if success then
-                        config.to[slot] = proto.name
+                        module_config[slot] = proto.name
                     end
                 end
             end
-            if slot == 1 and element.elem_value and e.player.mod_settings["module_inserter_fill_all"].value then
-                for i = 2, entity_proto.module_inventory_size do
-                    config.to[i] = config.to[i] or element.elem_value
+            local slot_count = entity_proto and entity_proto.module_inventory_size or storage.max_slot_count
+            if slot == 1 and e.player.mod_settings["module_inserter_fill_all"].value then
+                for i = 2, slot_count do
+                    module_config.module_list[i] = module_config.module_list[i] or element.elem_value
                 end
             end
-            mi_gui.update_modules(config_rows.children[index], entity_proto.module_inventory_size, config.to)
+            if index then
+                mi_gui.update_modules(config_rows.children[index].modules, slot_count, module_config_set)
+            else
+                mi_gui.update_modules(e.pdata.gui.main.default_modules, slot_count, module_config_set)
+            end
             local cTable = {}
-            for _, module in pairs(config.to) do
+            for _, module in pairs(module_config) do
                 if module then
                     cTable[module] = (cTable[module] or 0) + 1
                 end
             end
-            config.cTable = cTable
+            module_config_set.configs[1].cTable = cTable
         end,
         --- @param e MiEventInfo
         destroy_tool = function(e)

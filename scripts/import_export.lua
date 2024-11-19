@@ -9,7 +9,7 @@ function import_export.export_config(player, config_data, name)
             for i, config in pairs(data) do
                 if config.from then
                     local items = {}
-                    for _, module in pairs(config.to) do
+                    for _, module in pairs(config.module_list) do
                         items[module] = items[module] and items[module] + 1 or 1
                     end
                     entities[bp_index] = {
@@ -64,7 +64,7 @@ end
 --- @param player any
 --- @param bp_string any
 --- @return int status return of import_stack, or 2 for other errors
---- @return ModuleConfig
+--- @return PresetConfig|{[string]:PresetConfig}
 --- @return string
 --- @nodiscard
 function import_export.import_config(player, bp_string)
