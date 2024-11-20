@@ -96,13 +96,14 @@ mi_gui.templates = {
                     style = name == selected and "mi_preset_button_selected" or "mi_preset_button",
                     handler = mi_gui.handlers.preset.load,
                 },
-                {
-                    type = "sprite-button",
-                    style = "tool_button",
-                    sprite = "utility/export_slot",
-                    tooltip = { "module-inserter-export_tt" },
-                    handler = mi_gui.handlers.preset.export,
-                },
+                -- TODO export
+                -- {
+                --     type = "sprite-button",
+                --     style = "tool_button",
+                --     sprite = "utility/export_slot",
+                --     tooltip = { "module-inserter-export_tt" },
+                --     handler = mi_gui.handlers.preset.export,
+                -- },
                 {
                     type = "sprite-button",
                     style = "tool_button_red",
@@ -374,21 +375,22 @@ function mi_gui.create(player_index)
                                     style = "subheader_frame",
                                     children = {
                                         { type = "label", style = "subheader_caption_label", caption = { "module-inserter-storage-frame-title" } },
-                                        mi_gui.templates.pushers.horizontal,
-                                        {
-                                            type = "sprite-button",
-                                            style = "tool_button",
-                                            sprite = "mi_import_string",
-                                            tooltip = { "module-inserter-import_tt" },
-                                            handler = mi_gui.handlers.presets.import,
-                                        },
-                                        {
-                                            type = "sprite-button",
-                                            style = "tool_button",
-                                            sprite = "utility/export_slot",
-                                            tooltip = { "module-inserter-export_tt" },
-                                            handler = mi_gui.handlers.presets.export,
-                                        },
+                                        -- TODO import/export
+                                        -- mi_gui.templates.pushers.horizontal,
+                                        -- {
+                                        --     type = "sprite-button",
+                                        --     style = "tool_button",
+                                        --     sprite = "mi_import_string",
+                                        --     tooltip = { "module-inserter-import_tt" },
+                                        --     handler = mi_gui.handlers.presets.import,
+                                        -- },
+                                        -- {
+                                        --     type = "sprite-button",
+                                        --     style = "tool_button",
+                                        --     sprite = "utility/export_slot",
+                                        --     tooltip = { "module-inserter-export_tt" },
+                                        --     handler = mi_gui.handlers.presets.export,
+                                        -- },
                                     }
                                 },
                                 {
