@@ -485,12 +485,12 @@ end
 
 function mi_gui.shrink_rows(config_rows, c, config_tmp)
     for i = c, START_SIZE + 1, -1 do
-        if config_tmp[i] then
-            if config_tmp[i - 1].from then
+        if config_tmp.rows[i] then
+            if config_tmp.rows[i - 1].from then
                 break
-            elseif not config_tmp[i].from and not config_tmp[i - 1].from then
+            elseif not config_tmp.rows[i].from and not config_tmp.rows[i - 1].from then
                 config_rows.children[i].destroy()
-                config_tmp[i] = nil
+                config_tmp.rows[i] = nil
             end
         else
             if config_rows.children[i] then
@@ -801,7 +801,9 @@ mi_gui.handlers = {
                 config_tmp.rows[index].from = elem_value --[[@as string]]
             end
 
-            mi_gui.update_row(e.pdata, config_tmp.rows[index], index)
+            if config_tmp.rows[index] then
+                mi_gui.update_row(e.pdata, config_tmp.rows[index], index)
+            end
             if index == c then
                 mi_gui.extend_rows(config_rows, c, config_tmp)
             end
@@ -950,7 +952,7 @@ mi_gui.handlers = {
             -- Normalize the table, filing in any lower indexes
             -- Normally not needed, but in case of a bad blueprint import or something
             local max_index = START_SIZE
-            for k, _ in pairs(pdata.config_tmp) do
+            for k, _ in pairs(pdata.config_tmp.rows) do
                 max_index = math.max(max_index, k)
             end
             for i = 1, max_index do
