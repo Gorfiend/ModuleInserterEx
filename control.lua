@@ -113,19 +113,6 @@ local function on_player_selected_area(e)
                 goto continue
             end
 
-            --remove existing proxies if we have a config for its target
-            -- TODO remove this?
-            if entity.name == "item-request-proxy" then
-                local target = entity.proxy_target
-                if target and target.valid then
-                    local modules, _ = util.find_modules_to_use_for_entity(target, active_preset)
-                    if modules then
-                        entity.destroy{raise_destroy = true}
-                    end
-                end
-                goto continue
-            end
-
             local modules, messages = util.find_modules_to_use_for_entity(entity, active_preset)
 
             if modules then
@@ -162,13 +149,14 @@ end
 local function on_player_alt_selected_area(e)
     local status, err = pcall(function()
         if not e.item == "module-inserter" then return end
+        local player = game.players[e.player_index]
         for _, entity in pairs(e.entities) do
-            if entity.name == "item-request-proxy" then
-                -- TODO remove this? replace with removing from the base entity
-                entity.destroy{raise_destroy = true}
-            elseif entity.type == "entity-ghost" then
-                entity.insert_plan = {}
-            end
+            util.create_request_proxy({
+                entity = entity,
+                module_config = types.make_module_config(),
+                player = player,
+                surface = entity.surface,
+            })
         end
         conditional_events()
     end)
@@ -191,9 +179,7 @@ local function on_player_reverse_selected_area(e)
         local max_proxies = settings.global["module_inserter_proxies_per_tick"].value
 
         for i, entity in pairs(e.entities) do
-            if entity.name == "item-request-proxy" then
-                entity.destroy{raise_destroy = true}
-            elseif entity.type == "entity-ghost" then
+            if entity.type == "entity-ghost" then
                 entity.insert_plan = {}
             else
                 if (i % max_proxies == 0) then

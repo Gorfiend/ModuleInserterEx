@@ -91,6 +91,18 @@ function util.create_request_proxy(data)
         return
     end
 
+    -- Remove any existing requests
+    local proxies = entity.surface.find_entities_filtered {
+        name = "item-request-proxy",
+        force = entity.force,
+        position = entity.position
+    }
+    for _, proxy in pairs(proxies) do
+        if proxy.proxy_target == entity then
+            proxy.destroy({ raise_destroy = true })
+        end
+    end
+
     local module_requests = {}
     local removal_plan = {}
     for i = 1, #module_inventory do
