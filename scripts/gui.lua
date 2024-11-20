@@ -4,6 +4,7 @@ local table = require("__flib__.table")
 local gui = require("__flib__.gui")
 local import_export = require("scripts.import-export")
 local types = require("scripts.types")
+local util = require("scripts.util")
 
 local mi_gui = {}
 mi_gui.templates = {
@@ -840,30 +841,24 @@ mi_gui.handlers = {
             end
 
             local module_config = module_config_set.configs[1]
-            module_config.module_list[slot] = element.elem_value --[[@as ItemIDAndQualityIDPair]]
             if element.elem_value and row_config and row_config.from then
                 -- If a normal row with an assembler selected, check if the module is valid
-                local proto = prototypes.item[element.elem_value]
-                local success = true
-                if proto then
-                    local itemEffects = proto.module_effects
-                    if entity_proto and itemEffects then
-                        for name, effect in pairs(itemEffects) do
-                            if effect > 0 and not entity_proto.allowed_effects[name] then
-                                success = false
-                                e.player.print({ "inventory-restriction.cant-insert-module", proto.localised_name,
-                                    entity_proto.localised_name })
-                                    module_config[slot] = nil
-                                element.elem_value = nil
-                                break
-                            end
+                local proto = prototypes.item[element.elem_value.name]
+                local itemEffects = proto.module_effects
+                if entity_proto and itemEffects then
+                    for name, effect in pairs(itemEffects) do
+                        if effect > 0 and not entity_proto.allowed_effects[name] then
+                            e.player.print({ "inventory-restriction.cant-insert-module", proto.localised_name,
+                                entity_proto.localised_name })
+                                module_config[slot] = nil
+                            element.elem_value = nil
+                            break
                         end
-                    end
-                    if success then
-                        module_config[slot] = proto.name
                     end
                 end
             end
+            module_config.module_list[slot] = util.normalize_id_quality_pair(element.elem_value --[[@as ItemIDAndQualityIDPair]])
+
             local slot_count = entity_proto and entity_proto.module_inventory_size or storage.max_slot_count
             if slot == 1 and e.player.mod_settings["module_inserter_fill_all"].value then
                 for i = 2, slot_count do

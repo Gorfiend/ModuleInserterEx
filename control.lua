@@ -118,7 +118,7 @@ local function create_request_proxy(data)
         local need_to_add = target ~= nil
         if stack.valid_for_read then
             -- If it's already the target module, then do nothing
-            if stack.name == target then -- TODO also check the quality
+            if target and stack.name == target.name and stack.quality.name == target.quality then
                 need_to_add = false
             else
                 need_to_remove = true
@@ -129,7 +129,7 @@ local function create_request_proxy(data)
             module_requests[i] = createBlueprintInsertPlan(target, i, inventory_define)
         end
         if need_to_remove then
-            removal_plan[i] = createBlueprintInsertPlan({ name = stack.name, quality = stack.quality }, i, inventory_define)
+            removal_plan[i] = createBlueprintInsertPlan({ name = stack.name, quality = stack.quality.name }, i, inventory_define)
         end
     end
     if next(module_requests) == nil and next(removal_plan) == nil then
@@ -202,12 +202,12 @@ local function modules_allowed(recipe, modules)
         for _, module in pairs(modules.module_list) do
             for effect_name, effect_num in pairs(prototypes.item[module.name].module_effects) do
                 if effect_num > 0 and not recipe.prototype.allowed_effects[effect_name] then
+                    local category = prototypes.item[module.name].category
                     return { "item-limitation." .. category .. "-effect"}
                 end
             end
         end
     end
-    return
 end
 
 ---@param e EventData.on_player_selected_area
@@ -290,14 +290,14 @@ local function on_player_selected_area(e)
                     surface = surface,
                 }
             else
-                for k, v in messages do
+                for k, v in pairs(messages) do
                     result_messages[k] = v
                 end
             end
             ::continue::
         end
-        for _, message in result_messages do
-            player.print({message})
+        for _, message in pairs(result_messages) do
+            player.print(message)
         end
         conditional_events()
     end)
