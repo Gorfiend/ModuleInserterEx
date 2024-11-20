@@ -1,12 +1,12 @@
 
---- @class GlobalData
+--- @class (exact) GlobalData
 --- @field to_create {[int]:{[int]:ToCreateData}}
 --- @field name_to_slot_count {[string]:int} Name of all entities mapped to their module slot count
 --- @field max_slot_count int Number of slots the entity with the most has (used for default config slot count)
 --- @field module_entities string[] all entities that have valid module slots
 --- @field _pdata {[int]:PlayerConfig}
 
---- @class PlayerConfig
+--- @class (exact) PlayerConfig
 --- @field last_preset string
 --- @field config PresetConfig
 --- @field config_tmp PresetConfig
@@ -21,23 +21,24 @@
 
 --- @alias ConfigByEntity {[string]: ModuleConfigSet}
 
---- @class PlayerGui
+--- @class (exact) PlayerGui
 --- @field main PlayerGuiMain
 --- @field presets PlayerGuiPresets
 --- @field import PlayerGuiImport?
 
---- @class PlayerGuiMain
+--- @class (exact) PlayerGuiMain
 --- @field window LuaGuiElement
 --- @field pin_button LuaGuiElement
+--- @field destroy_tool_button LuaGuiElement
 --- @field config_rows LuaGuiElement
 --- @field default_checkbox LuaGuiElement
 --- @field default_modules LuaGuiElement
 
---- @class PlayerGuiPresets
+--- @class (exact) PlayerGuiPresets
 --- @field textfield LuaGuiElement
 --- @field scroll_pane LuaGuiElement
 
---- @class PlayerGuiImport
+--- @class (exact) PlayerGuiImport
 --- @field textbox LuaGuiElement
 --- @field window LuaGuiElement
 
@@ -55,18 +56,17 @@
 --- @field configs ModuleConfig[]
 
 --- @class (exact) ModuleConfig
---- @field module_list string[] array of module slot indexes to the module in that slot
---- @field cTable {[string]:int} modules mapped to their count
+--- @field module_list ItemIDAndQualityIDPair[] array of module slot indexes to the module in that slot
 
 
---- @class MiEventInfo
+--- @class (exact) MiEventInfo
 --- @field event flib.GuiEventData
 --- @field player LuaPlayer
 --- @field pdata PlayerConfig
 
---- @class ToCreateData
+--- @class (exact) ToCreateData
 --- @field entity LuaEntity
---- @field modules string[]
+--- @field modules ItemIDAndQualityIDPair[]
 --- @field player LuaPlayer
 --- @field surface LuaSurface
 
@@ -106,7 +106,6 @@ function types.make_module_config()
     --- @type ModuleConfig
     return {
         module_list = {},
-        cTable = {},
     }
 end
 

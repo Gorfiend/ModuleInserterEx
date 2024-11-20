@@ -65,25 +65,14 @@ script.on_event(defines.events.on_lua_shortcut, function(e)
     end
 end)
 
-script.on_event("mi-confirm-gui", function(e)
-    local pdata =  storage._pdata and storage._pdata[e.player_index]
-    if pdata and pdata.gui_open and not pdata.pinned then
-        me = {
-            event = e,
-            pdata = pdata,
-            player = game.get_player(e.player_index)
-        }
-        mi_gui.handlers.main.apply_changes(me)
-    end
-end)
-
---- @param module_name string
+--- @param module ItemIDAndQualityIDPair
 --- @param stack_index int
 --- @param inventory_define defines.inventory
---- @return table
-local function createBlueprintInsertPlan(module_name, stack_index, inventory_define)
+--- @return BlueprintInsertPlan
+local function createBlueprintInsertPlan(module, stack_index, inventory_define)
+    --- @type BlueprintInsertPlan
     return {
-        id = { name = module_name, },
+        id = module,
         items = {
             in_inventory = {{
                 inventory = inventory_define,
@@ -96,8 +85,8 @@ end
 
 --- @param data ToCreateData
 local function create_request_proxy(data)
-    entity = data.entity
-    modules = data.modules
+    local entity = data.entity
+    local modules = data.modules
 
     if entity.type == "entity-ghost" then
         local inventory_define = inventory_defines_map[entity.ghost_type]
@@ -141,7 +130,7 @@ local function create_request_proxy(data)
             module_requests[i] = createBlueprintInsertPlan(target, i, inventory_define)
         end
         if need_to_remove then
-            removal_plan[i] = createBlueprintInsertPlan(stack.name, i, inventory_define)
+            removal_plan[i] = createBlueprintInsertPlan({ name = stack.name, quality = stack.quality }, i, inventory_define)
         end
     end
     if next(module_requests) == nil and next(removal_plan) == nil then
@@ -149,7 +138,7 @@ local function create_request_proxy(data)
         return
     end
 
-    create_info = {
+    local create_info = {
         name = "item-request-proxy",
         position = entity.position,
         force = entity.force,
@@ -203,7 +192,7 @@ local function modules_allowed(recipe, modules)
     -- TODO may want to cache this result?
     if recipe.prototype.allowed_module_categories then
         for _, module in pairs(modules.module_list) do
-            local category = prototypes.item[module].category
+            local category = prototypes.item[module.name].category
             if not recipe.prototype.allowed_module_categories[category] then
                 return false
             end
@@ -211,7 +200,7 @@ local function modules_allowed(recipe, modules)
     end
     if recipe.prototype.allowed_effects then
         for _, module in pairs(modules.module_list) do
-            for effect_name, effect_num in pairs(prototypes.item[module].module_effects) do
+            for effect_name, effect_num in pairs(prototypes.item[module.name].module_effects) do
                 if effect_num > 0 and not recipe.prototype.allowed_effects[effect_name] then
                     return false
                 end
@@ -280,8 +269,6 @@ local function on_player_selected_area(e)
                     if modules_allowed(recipe, e_config) then
                         entity_config = e_config
                         break
-                    else
-                        message = "item-limitation.production-module-usable-only-on-intermediates" -- TODO change to the proper one
                     end
                 end
             else
@@ -294,10 +281,12 @@ local function on_player_selected_area(e)
                 if not storage.to_create[delay] then storage.to_create[delay] = {} end
                 storage.to_create[delay][entity.unit_number --[[@as int]]] = {
                     entity = entity,
-                    modules = table.shallow_copy(entity_config.module_list),
+                    modules = table.deep_copy(entity_config.module_list),
                     player = player,
                     surface = surface,
                 }
+            else
+                message = "item-limitation.production-module-usable-only-on-intermediates" -- TODO change to the proper one
             end
             ::continue::
         end
@@ -402,10 +391,9 @@ local function remove_invalid_items()
         local function _clean_module_config(module_config)
             for _, mc in pairs(module_config.configs) do
                 for i, m in pairs(mc.module_list) do
-                    if m and not items[m] then
+                    if m and not items[m.name] then
                         mc.module_list[i] = nil
-                        mc.cTable[m] = nil
-                        removed_modules[m] = true
+                        removed_modules[m.name] = true
                     end
                 end
             end
@@ -525,6 +513,7 @@ script.on_event(defines.events.on_runtime_mod_setting_changed, function(e)
     if not e.player_index then return end
     if e.setting == "module_inserter_button_style" or e.setting == "module_inserter_hide_button" then
         mi_gui.update_main_button(game.get_player(e.player_index))
+        mi_gui.update_main_frame_buttons(game.get_player(e.player_index))
     end
 end)
 
