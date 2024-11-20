@@ -53,7 +53,6 @@ local function get_module_inserter(e)
         mi.swap_stack(player.cursor_stack)
     else
         player.clear_cursor()
-        -- WHY IS THIS NOT WORKING IN REMOTE VIEW
         player.cursor_stack.set_stack({ name = "module-inserter" })
     end
 end
@@ -186,6 +185,7 @@ end
 
 --- @param recipe LuaRecipe
 --- @param modules ModuleConfig
+--- @return LocalisedString?
 local function modules_allowed(recipe, modules)
     -- TODO really not sure what the checks here should be
     -- TODO also add the entity in this check?
@@ -194,7 +194,7 @@ local function modules_allowed(recipe, modules)
         for _, module in pairs(modules.module_list) do
             local category = prototypes.item[module.name].category
             if not recipe.prototype.allowed_module_categories[category] then
-                return false
+                return { "item-limitation." .. category .. "-effect"}
             end
         end
     end
@@ -202,12 +202,12 @@ local function modules_allowed(recipe, modules)
         for _, module in pairs(modules.module_list) do
             for effect_name, effect_num in pairs(prototypes.item[module.name].module_effects) do
                 if effect_num > 0 and not recipe.prototype.allowed_effects[effect_name] then
-                    return false
+                    return { "item-limitation." .. category .. "-effect"}
                 end
             end
         end
     end
-    return true
+    return
 end
 
 ---@param e EventData.on_player_selected_area
@@ -227,7 +227,7 @@ local function on_player_selected_area(e)
         local surface = player.surface
         local delay = e.tick --[[@as uint]]
         local max_proxies = settings.global["module_inserter_proxies_per_tick"].value
-        local message = nil
+        local result_messages = {}
         for i, entity in pairs(e.entities) do
 
             --skip the entity if it is a tile ghost
@@ -264,11 +264,15 @@ local function on_player_selected_area(e)
             --- @type ModuleConfig?
             local entity_config = nil
             -- add checks for the assembler type, in case this is the default config
+            local messages = {}
             if recipe then
                 for _, e_config in pairs(module_config_set.configs) do
-                    if modules_allowed(recipe, e_config) then
+                    local message = modules_allowed(recipe, e_config)
+                    if not message then
                         entity_config = e_config
                         break
+                    else
+                        messages[message] = message
                     end
                 end
             else
@@ -286,11 +290,13 @@ local function on_player_selected_area(e)
                     surface = surface,
                 }
             else
-                message = "item-limitation.production-module-usable-only-on-intermediates" -- TODO change to the proper one
+                for k, v in messages do
+                    result_messages[k] = v
+                end
             end
             ::continue::
         end
-        if message then
+        for _, message in result_messages do
             player.print({message})
         end
         conditional_events()

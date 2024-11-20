@@ -2,7 +2,7 @@ local START_SIZE = 5
 local mod_gui = require("__core__.lualib.mod-gui")
 local table = require("__flib__.table")
 local gui = require("__flib__.gui")
-local import_export = require("scripts.import_export")
+local import_export = require("scripts.import-export")
 local types = require("scripts.types")
 
 local mi_gui = {}
@@ -699,6 +699,7 @@ function mi_gui.toggle(e)
     if e.pdata.gui_open then
         mi_gui.close(e)
     else
+        -- TODO remove the destroy when done updating gui
         mi_gui.destroy(e.pdata, e.player)
         mi_gui.open(e)
     end
