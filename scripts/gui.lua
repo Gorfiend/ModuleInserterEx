@@ -7,6 +7,7 @@ local util = require("scripts.util")
 
 local mi_gui = {}
 mi_gui.templates = {
+    --- @param assembler string?
     --- @return flib.GuiElemDef
     assembler_button = function(assembler)
         return {
@@ -69,15 +70,42 @@ mi_gui.templates = {
     --- @return flib.GuiElemDef
     module_set = function(name)
         return {
-            type = "frame",
+            type = "flow",
             name = name or "module_set",
-            style = "deep_frame_in_shallow_frame",
             direction = "vertical",
-            style_mods = {
-                margin = 5,
-                padding = 5,
-            },
             children = {},
+        }
+    end,
+
+    --- @return flib.GuiElemDef
+    target_section = function()
+        return {
+            type = "frame",
+            style = "inside_shallow_frame",
+            name = "target_frame",
+            style_mods = {
+                horizontally_stretchable = false,
+                vertically_stretchable = true,
+            },
+            children = {
+                {
+                    type = "table",
+                    column_count = 3,
+                    name = "target_section",
+                    children = {
+                        mi_gui.templates.assembler_button(),
+                    },
+                    style_mods = {
+                        margin = 5,
+                        padding = 0,
+                        horizontal_spacing = 0,
+                        vertical_spacing = 0,
+                        minimal_width = 150,
+                        horizontally_stretchable = false,
+                        vertically_stretchable = true,
+                    },
+                }
+            }
         }
     end,
 
@@ -86,12 +114,17 @@ mi_gui.templates = {
     --- @return flib.GuiElemDef
     config_row = function(index, config)
         return {
-            type = "flow",
-            direction = "horizontal",
+            type = "frame",
             name = index,
-            style_mods = { horizontal_spacing = 0 },
+            style = "deep_frame_in_shallow_frame",
+            direction = "horizontal",
+            style_mods = {
+                margin = 2,
+                padding = 2,
+                minimal_width = 525,
+            },
             children = {
-                mi_gui.templates.assembler_button(config and config.from or nil),
+                mi_gui.templates.target_section(),
             }
         }
     end,
@@ -243,7 +276,7 @@ function mi_gui.create(player_index)
     local refs = gui.add(player.gui.screen, {
         {
             type = "frame",
-            style_mods = { maximal_height = 650 }, ---@diagnostic disable-line: missing-fields
+            style_mods = { maximal_height = 750 }, ---@diagnostic disable-line: missing-fields
             direction = "vertical",
             handler = { [defines.events.on_gui_closed] = mi_gui.handlers.main.close_window },
             name = "main_window",
@@ -341,16 +374,24 @@ function mi_gui.create(player_index)
                                                     type = "flow",
                                                     direction = "horizontal",
                                                     name = "default_row",
-                                                    style_mods = { horizontal_spacing = 0, minimal_height = 40, minimal_width = 430, vertical_align = "center" }, ---@diagnostic disable-line: missing-fields
+                                                    style_mods = { horizontal_spacing = 0, minimal_height = 103, minimal_width = 430, vertical_align = "center" }, ---@diagnostic disable-line: missing-fields
                                                     children = {
                                                         {
-                                                            type = "checkbox",
-                                                            name = "default_checkbox",
-                                                            caption = "Use Default",
-                                                            state = false,
-                                                            style_mods = { right_margin = 6 }, ---@diagnostic disable-line: missing-fields
-                                                            handler = { [defines.events.on_gui_checked_state_changed] = mi_gui.handlers.main.default_checkbox },
-                                                            tooltip = "If checked, will fill any entities without a more specific row with the modules here", -- TODO move text string to locale
+                                                            type = "frame",
+                                                            style = "inside_shallow_frame",
+                                                            children = {
+                                                                type = "checkbox",
+                                                                name = "default_checkbox",
+                                                                caption = "Use Default",
+                                                                state = false,
+                                                                style_mods = {
+                                                                    right_margin = 6,
+                                                                    horizontally_stretchable = true,
+                                                                    vertically_stretchable = true,
+                                                                }, ---@diagnostic disable-line: missing-fields
+                                                                handler = { [defines.events.on_gui_checked_state_changed] = mi_gui.handlers.main.default_checkbox },
+                                                                tooltip = "If checked, will fill any entities without a more specific row with the modules here", -- TODO move text string to locale
+                                                            }
                                                         },
                                                         mi_gui.templates.module_set("default_module_set"),
                                                     }
@@ -365,17 +406,10 @@ function mi_gui.create(player_index)
                                     style_mods = { padding = 12, top_padding = 8, vertical_spacing = 10 }, ---@diagnostic disable-line: missing-fields
                                     children = {
                                         {
-                                            type = "frame",
-                                            style = "deep_frame_in_shallow_frame",
-                                            style_mods = { horizontally_stretchable = true, minimal_height = 444 }, ---@diagnostic disable-line: missing-fields
-                                            children = {
-                                                {
-                                                    type = "scroll-pane",
-                                                    style = "mi_naked_scroll_pane",
-                                                    name = "config_rows",
-                                                    children = mi_gui.templates.config_rows(config_tmp)
-                                                }
-                                            }
+                                            type = "scroll-pane",
+                                            style = "mi_naked_scroll_pane",
+                                            name = "config_rows",
+                                            children = mi_gui.templates.config_rows(config_tmp)
                                         }
                                     }
                                 }
@@ -505,12 +539,12 @@ end
 --- @param config_tmp PresetConfig
 --- @param do_scroll boolean?
 function mi_gui.update_rows(gui_config_rows, config_tmp, do_scroll)
+    -- Add or destroy rows as needed
     while #gui_config_rows.children < #config_tmp.rows do
         gui.add(gui_config_rows, { mi_gui.templates.config_row(#gui_config_rows.children + 1) })
     end
     while #gui_config_rows.children > #config_tmp.rows do
-        local child = gui_config_rows.children[#gui_config_rows.children]
-        child.destroy()
+        gui_config_rows.children[#gui_config_rows.children].destroy()
     end
 
     for index, row_config in ipairs(config_tmp.rows) do
@@ -528,19 +562,17 @@ end
 --- @param module_config ModuleConfig
 function mi_gui.update_modules(module_row, slots, module_config)
     local button_table = module_row.children[1]
-    local module_btns = table_size(button_table.children)
     slots = slots or 0
     local module_list = module_config.module_list or {}
-    if module_btns < slots then
-        for i = module_btns + 1, slots do
-            gui.add(button_table, { mi_gui.templates.module_button(i) })
-        end
-    elseif module_btns > slots then
-        for i = slots + 1, module_btns do
-            local child = button_table.children[i]
-            child.destroy()
-        end
+
+    -- Add or destroy buttons as needed
+    while #button_table.children < slots do
+        gui.add(button_table, { mi_gui.templates.module_button(#button_table.children + 1) })
     end
+    while #button_table.children > slots do
+        button_table.children[#button_table.children].destroy()
+    end
+
     for i = 1, slots do
         local child = button_table.children[i]
         child.elem_value = module_list[i]
@@ -581,8 +613,9 @@ function mi_gui.update_row(gui_config_rows, row_config, index)
         local _, first = gui.add(gui_config_rows, { row_template })
         row = first
     end
-    row.assembler.elem_value = assembler
-    row.assembler.tooltip = assembler and prototypes.entity[assembler] and prototypes.entity[assembler].localised_name or { "module-inserter-choose-assembler" }
+    local assembler_button = row.target_frame.target_section.assembler
+    assembler_button.elem_value = assembler
+    assembler_button.tooltip = assembler and prototypes.entity[assembler] and prototypes.entity[assembler].localised_name or { "module-inserter-choose-assembler" }
 
     if not assembler then
         -- No assembler, delete the module section
@@ -794,7 +827,7 @@ mi_gui.handlers = {
             local config_tmp = pdata.config_tmp
             local config_rows = pdata.gui.main.config_rows
             if not (config_rows and config_rows.valid) then return end
-            local index = tonumber(e.event.element.parent.name)
+            local index = tonumber(e.event.element.parent.parent.parent.name)
             if not index then return end
             local element = e.event.element
             if not element then return end
@@ -817,10 +850,12 @@ mi_gui.handlers = {
 
             config_tmp.rows[index].from = elem_value --[[@as string]]
 
+            local do_scroll = elem_value and index == #config_tmp.rows
+
             -- TODO ensure the module set is valid for the entity (probably don't change the entity if there's invalid modules, and show a message)
             util.normalize_preset_config(config_tmp)
 
-            mi_gui.update_rows(e.pdata.gui.main.config_rows, config_tmp)
+            mi_gui.update_rows(e.pdata.gui.main.config_rows, config_tmp, do_scroll)
         end,
 
         --- @param e MiEventInfo
