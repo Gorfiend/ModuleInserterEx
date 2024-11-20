@@ -25,23 +25,34 @@ function util.normalize_id_quality_pair(pair)
 end
 
 --- @param entity string
---- @param module_config_set ModuleConfigSet
+--- @param module_config ModuleConfig
 --- @return boolean, LocalisedString True if valid, else false and a localised error message
-function util.entity_valid_for_module_set(entity, module_config_set)
+function util.entity_valid_for_modules(entity, module_config)
     local entity_proto = prototypes.entity[entity]
-    for _, module_row in pairs(module_config_set.configs) do
-        for _, module_info in pairs(module_row.module_list) do
-            local proto = prototypes.item[module_info.name]
-            local itemEffects = proto.module_effects
-            if itemEffects then
-                for name, effect in pairs(itemEffects) do
-                    if effect > 0 then
-                        if not entity_proto.allowed_effects[name] then
-                            return false, { "inventory-restriction.cant-insert-module", proto.localised_name, entity_proto.localised_name }
-                        end
+    for _, module_info in pairs(module_config.module_list) do
+        local proto = prototypes.item[module_info.name]
+        local itemEffects = proto.module_effects
+        if itemEffects then
+            for name, effect in pairs(itemEffects) do
+                if effect > 0 then
+                    if not entity_proto.allowed_effects[name] then
+                        return false, { "inventory-restriction.cant-insert-module", proto.localised_name, entity_proto.localised_name }
                     end
                 end
             end
+        end
+    end
+    return true
+end
+
+--- @param entity string
+--- @param module_config_set ModuleConfigSet
+--- @return boolean, LocalisedString True if valid, else false and a localised error message
+function util.entity_valid_for_module_set(entity, module_config_set)
+    for _, module_row in pairs(module_config_set.configs) do
+        local valid, error = util.entity_valid_for_modules(entity, module_row)
+        if not valid then
+            return valid, error
         end
     end
     return true
@@ -266,7 +277,7 @@ end
 
 --- @param recipe LuaRecipe
 --- @param modules ModuleConfig
---- @return LocalisedString?
+--- @return true|false, LocalisedString
 function util.modules_allowed(recipe, modules)
     -- TODO really not sure what the checks here should be
     -- TODO also add the entity in this check?
@@ -275,7 +286,7 @@ function util.modules_allowed(recipe, modules)
         for _, module in pairs(modules.module_list) do
             local category = prototypes.item[module.name].category
             if not recipe.prototype.allowed_module_categories[category] then
-                return { "item-limitation." .. category .. "-effect"}
+                return false, { "item-limitation." .. category .. "-effect"}
             end
         end
     end
@@ -284,16 +295,17 @@ function util.modules_allowed(recipe, modules)
             for effect_name, effect_num in pairs(prototypes.item[module.name].module_effects) do
                 if effect_num > 0 and not recipe.prototype.allowed_effects[effect_name] then
                     local category = prototypes.item[module.name].category
-                    return { "item-limitation." .. category .. "-effect"}
+                    return false, { "item-limitation." .. category .. "-effect"}
                 end
             end
         end
     end
+    return true
 end
 
 --- @param entity LuaEntity
 --- @param preset PresetConfig
---- @return ModuleConfig?, {[string]: string}? Module config to use for this entity, or nil if none, with table of error messages
+--- @return ModuleConfig?, {[LocalisedString]: LocalisedString}? Module config to use for this entity, or nil if none, with table of error messages
 function util.find_modules_to_use_for_entity(entity, preset)
     local name = util.maybe_ghost_property(entity, "name")
     for _, row in pairs(preset.rows) do
@@ -310,27 +322,34 @@ end
 
 --- @param entity LuaEntity
 --- @param module_config_set ModuleConfigSet
---- @return ModuleConfig?, {[string]: string}? Module config to use for this entity, or nil if none, with table of error messages
+--- @return ModuleConfig?, {[LocalisedString]: LocalisedString}? Module config to use for this entity, or nil if none, with table of error messages
 function util.choose_module_config_from_set(entity, module_config_set)
     ent_type = util.maybe_ghost_property(entity, "type")
+    ent_name = util.maybe_ghost_property(entity, "name")
 
     local recipe = ent_type == "assembling-machine" and entity.get_recipe()
     --- @type ModuleConfig?
     local config_to_use = nil
-    -- add checks for the assembler type, in case this is the default config
     local messages = {}
-    if recipe then
-        for _, e_config in pairs(module_config_set.configs) do
-            local message = util.modules_allowed(recipe, e_config)
-            if not message then
-                config_to_use = e_config
-                break
+    for _, module_config in pairs(module_config_set.configs) do
+        if table_size(module_config.module_list) == 0 then break end -- The empty config, skip it
+        local valid, message = util.entity_valid_for_modules(ent_name, module_config)
+        if valid then
+            if recipe then
+                valid, message = util.modules_allowed(recipe, module_config)
+                if valid then
+                    config_to_use = module_config
+                    break
+                else
+                    messages[message] = message ---@diagnostic disable-line: need-check-nil
+                end
             else
-                messages[message] = message
+                config_to_use = module_config
+                break
             end
+        else
+            messages[message] = message ---@diagnostic disable-line: need-check-nil
         end
-    else
-        config_to_use = module_config_set.configs[1]
     end
     if config_to_use then
         if not util.module_config_has_entries(config_to_use) then

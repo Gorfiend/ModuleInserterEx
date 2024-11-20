@@ -388,7 +388,7 @@ function mi_gui.create(player_index)
                                                             children = {
                                                                 type = "checkbox",
                                                                 name = "default_checkbox",
-                                                                caption = "Use Default",
+                                                                caption = "Default Modules",
                                                                 state = false,
                                                                 style_mods = {
                                                                     margin = 6,
@@ -398,7 +398,7 @@ function mi_gui.create(player_index)
                                                                     vertical_align = "center"
                                                                 }, ---@diagnostic disable-line: missing-fields
                                                                 handler = { [defines.events.on_gui_checked_state_changed] = mi_gui.handlers.main.default_checkbox },
-                                                                tooltip = "If checked, will fill any entities without a more specific row with the modules here", -- TODO move text string to locale
+                                                                tooltip = "If checked, will fill any entities not specified below with the modules here", -- TODO move text string to locale
                                                             }
                                                         },
                                                         mi_gui.templates.module_set("default_module_set"),
