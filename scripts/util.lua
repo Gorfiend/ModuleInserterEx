@@ -24,22 +24,27 @@ function util.normalize_id_quality_pair(pair)
     return pair
 end
 
---- @param module ItemIDAndQualityIDPair
---- @param stack_index int
---- @param inventory_define defines.inventory
---- @return BlueprintInsertPlan
-local function createBlueprintInsertPlan(module, stack_index, inventory_define)
-    --- @type BlueprintInsertPlan
-    return {
-        id = module,
-        items = {
-            in_inventory = {{
-                inventory = inventory_define,
-                stack = stack_index - 1,
-                count = 1,
-            }}
-        }
-    }
+--- @param entity string
+--- @param module_config_set ModuleConfigSet
+--- @return boolean, LocalisedString True if valid, else false and a localised error message
+function util.entity_valid_for_module_set(entity, module_config_set)
+    local entity_proto = prototypes.entity[entity]
+    for _, module_row in pairs(module_config_set.configs) do
+        for _, module_info in pairs(module_row.module_list) do
+            local proto = prototypes.item[module_info.name]
+            local itemEffects = proto.module_effects
+            if itemEffects then
+                for name, effect in pairs(itemEffects) do
+                    if effect > 0 then
+                        if not entity_proto.allowed_effects[name] then
+                            return false, { "inventory-restriction.cant-insert-module", proto.localised_name, entity_proto.localised_name }
+                        end
+                    end
+                end
+            end
+        end
+    end
+    return true
 end
 
 --- @param module string
@@ -61,6 +66,24 @@ function util.module_valid_for_config(module, target_config)
         end
     end
     return true
+end
+
+--- @param module ItemIDAndQualityIDPair
+--- @param stack_index int
+--- @param inventory_define defines.inventory
+--- @return BlueprintInsertPlan
+local function createBlueprintInsertPlan(module, stack_index, inventory_define)
+    --- @type BlueprintInsertPlan
+    return {
+        id = module,
+        items = {
+            in_inventory = {{
+                inventory = inventory_define,
+                stack = stack_index - 1,
+                count = 1,
+            }}
+        }
+    }
 end
 
 --- Process data to create logistic requests to insert/remove modules
@@ -182,15 +205,21 @@ function util.get_target_config_max_slots(target_config)
 end
 
 --- Resize the config set, removing empty configs, and making sure one empty config at the end
+--- @param slots int Number of slots in each row
 --- @param module_set ModuleConfigSet
-function util.normalize_module_set(module_set)
+function util.normalize_module_set(slots, module_set)
     -- Remove all empty configs
     local index = 1
     while index <= #module_set.configs do
-        local have_entries = util.module_config_has_entries(module_set.configs[index])
+        local module_config = module_set.configs[index]
+        local have_entries = util.module_config_has_entries(module_config)
         if not have_entries then
             table.remove(module_set.configs, index)
         else
+            -- Clear slots that are not used anymore
+            for slot_index = slots + 1, storage.max_slot_count do
+                module_config.module_list[slot_index] = nil
+            end
             index = index + 1
         end
     end
@@ -199,17 +228,34 @@ function util.normalize_module_set(module_set)
     table.insert(module_set.configs, types.make_module_config())
 end
 
+--- Resize the config set, removing empty slots
+--- @param target_config TargetConfig
+function util.normalize_target_config(target_config)
+    -- Remove all empty configs
+    local index = 1
+    while index <= #target_config.entities do
+        local have_entries = target_config.entities[index] ~= nil
+        if not have_entries then
+            table.remove(target_config.entities, index)
+        else
+            index = index + 1
+        end
+    end
+end
+
 --- Resize the config rows, removing empty rows, and making sure one empty row at the end
 --- @param config PresetConfig
 function util.normalize_preset_config(config)
     -- Remove all empty configs
     local index = 1
     while index <= #config.rows do
-        local have_entries = util.row_config_has_entries(config.rows[index])
+        local row_config = config.rows[index]
+        local have_entries = util.row_config_has_entries(row_config)
         if not have_entries then
             table.remove(config.rows, index)
         else
-            util.normalize_module_set(config.rows[index].module_configs)
+            util.normalize_target_config(row_config.target)
+            util.normalize_module_set(util.get_target_config_max_slots(row_config.target), row_config.module_configs)
             index = index + 1
         end
     end

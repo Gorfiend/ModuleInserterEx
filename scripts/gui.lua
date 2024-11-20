@@ -103,7 +103,7 @@ mi_gui.templates = {
                         padding = 0,
                         horizontal_spacing = 0,
                         vertical_spacing = 0,
-                        minimal_width = 150,
+                        minimal_width = 138,
                         horizontally_stretchable = false,
                         vertically_stretchable = true,
                     },
@@ -379,20 +379,23 @@ function mi_gui.create(player_index)
                                                     type = "flow",
                                                     direction = "horizontal",
                                                     name = "default_row",
-                                                    style_mods = { horizontal_spacing = 0, minimal_height = 103, minimal_width = 430, vertical_align = "center" }, ---@diagnostic disable-line: missing-fields
+                                                    style_mods = { horizontal_spacing = 0, minimal_height = 51, minimal_width = 430 }, ---@diagnostic disable-line: missing-fields
                                                     children = {
                                                         {
                                                             type = "frame",
                                                             style = "inside_shallow_frame",
+                                                            style_mods = { horizontally_stretchable = true, vertically_stretchable = true }, ---@diagnostic disable-line: missing-fields
                                                             children = {
                                                                 type = "checkbox",
                                                                 name = "default_checkbox",
                                                                 caption = "Use Default",
                                                                 state = false,
                                                                 style_mods = {
-                                                                    right_margin = 6,
+                                                                    margin = 6,
                                                                     horizontally_stretchable = true,
                                                                     vertically_stretchable = true,
+                                                                    minimal_width = 99,
+                                                                    vertical_align = "center"
                                                                 }, ---@diagnostic disable-line: missing-fields
                                                                 handler = { [defines.events.on_gui_checked_state_changed] = mi_gui.handlers.main.default_checkbox },
                                                                 tooltip = "If checked, will fill any entities without a more specific row with the modules here", -- TODO move text string to locale
@@ -847,7 +850,8 @@ mi_gui.handlers = {
             if not element then return end
             local elem_value = element.elem_value
 
-            local old_value = config_tmp.rows[row_index].target.entities[target_index]
+            local row_config = config_tmp.rows[row_index]
+            local old_value = row_config.target.entities[target_index]
             if elem_value == old_value then
                 return
             end
@@ -856,7 +860,7 @@ mi_gui.handlers = {
                 for k, row in pairs(config_tmp.rows) do
                     for _, target in pairs(row.target.entities) do
                         if target and target == elem_value then
-                            e.event.element.elem_value = old_value
+                            element.elem_value = old_value
                             if k == row_index then
                                 e.player.print({ "", prototypes.entity[elem_value].localised_name, " is already configured in this row " })
                             else
@@ -866,9 +870,16 @@ mi_gui.handlers = {
                         end
                     end
                 end
+                local valid, error = util.entity_valid_for_module_set(elem_value --[[@as string]], row_config.module_configs)
+                if not valid then
+                    element.elem_value = old_value
+                    e.player.print(error)
+                    return
+                end
             end
 
-            config_tmp.rows[row_index].target.entities[target_index] = elem_value --[[@as string]]
+
+            row_config.target.entities[target_index] = elem_value --[[@as string]]
 
             local do_scroll = elem_value and row_index == #config_tmp.rows
 
@@ -931,7 +942,7 @@ mi_gui.handlers = {
                 end
             end
 
-            util.normalize_module_set(module_config_set)
+            util.normalize_module_set(slot_count, module_config_set)
 
             if not is_default_config then
                 mi_gui.update_module_set(config_rows.children[row_index].module_set, slot_count, module_config_set)
