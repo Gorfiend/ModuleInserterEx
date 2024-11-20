@@ -32,7 +32,7 @@
 --- @field destroy_tool_button LuaGuiElement
 --- @field config_rows LuaGuiElement
 --- @field default_checkbox LuaGuiElement
---- @field default_modules LuaGuiElement
+--- @field default_module_set LuaGuiElement
 
 --- @class (exact) PlayerGuiPresets
 --- @field textfield LuaGuiElement
