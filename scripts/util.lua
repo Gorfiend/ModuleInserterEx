@@ -124,9 +124,15 @@ function util.module_config_has_entries(module_config)
     return false
 end
 
+--- @param row_config RowConfig
+--- @return boolean
+function util.row_config_has_entries(row_config)
+    return row_config.from ~= nil
+end
+
 --- Resize the config set, removing empty configs, and making sure one empty config at the end
 --- @param module_set ModuleConfigSet
-function util.resize_module_set(module_set)
+function util.normalize_module_set(module_set)
     -- Remove all empty configs
     local index = 1
     while index <= #module_set.configs do
@@ -140,6 +146,25 @@ function util.resize_module_set(module_set)
 
     -- Add a single empty config to the end
     table.insert(module_set.configs, types.make_module_config())
+end
+
+--- Resize the config rows, removing empty rows, and making sure one empty row at the end
+--- @param config PresetConfig
+function util.normalize_preset_config(config)
+    -- Remove all empty configs
+    local index = 1
+    while index <= #config.rows do
+        local have_entries = util.row_config_has_entries(config.rows[index])
+        if not have_entries then
+            table.remove(config.rows, index)
+        else
+            util.normalize_module_set(config.rows[index].module_configs)
+            index = index + 1
+        end
+    end
+
+    -- Add a single empty config to the end
+    table.insert(config.rows, types.make_row_config())
 end
 
 return util

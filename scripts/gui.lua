@@ -1,4 +1,3 @@
-local START_SIZE = 5
 local mod_gui = require("__core__.lualib.mod-gui")
 local table = require("__flib__.table")
 local gui = require("__flib__.gui")
@@ -97,13 +96,12 @@ mi_gui.templates = {
         }
     end,
 
-    --- @param n int row count
     --- @param config_tmp PresetConfig
     --- @return flib.GuiElemDef
-    config_rows = function(n, config_tmp)
+    config_rows = function(config_tmp)
         local config_rows = {}
-        for index = 1, n do
-            config_rows[index] = mi_gui.templates.config_row(index, config_tmp.rows[index])
+        for index, row_config in ipairs(config_tmp.rows) do
+            config_rows[index] = mi_gui.templates.config_row(index, row_config)
         end
         return config_rows
     end,
@@ -242,12 +240,6 @@ function mi_gui.create(player_index)
     local config_tmp = table.deep_copy(pdata.config)
     pdata.config_tmp = config_tmp
 
-    local config_row_count = math.max(table_size(config_tmp.rows), START_SIZE)
-    for index = 1, config_row_count do
-        if not config_tmp.rows[index] then
-            config_tmp.rows[index] = types.make_row_config()
-        end
-    end
     local refs = gui.add(player.gui.screen, {
         {
             type = "frame",
@@ -381,7 +373,7 @@ function mi_gui.create(player_index)
                                                     type = "scroll-pane",
                                                     style = "mi_naked_scroll_pane",
                                                     name = "config_rows",
-                                                    children = mi_gui.templates.config_rows(START_SIZE, config_tmp)
+                                                    children = mi_gui.templates.config_rows(config_tmp)
                                                 }
                                             }
                                         }
@@ -509,36 +501,27 @@ function mi_gui.create_import_window(pdata, player, bp_string)
     textbox.focus()
 end
 
-function mi_gui.shrink_rows(config_rows, c, config_tmp)
-    for i = c, START_SIZE + 1, -1 do
-        if config_tmp.rows[i] then
-            if config_tmp.rows[i - 1].from then
-                break
-            elseif not config_tmp.rows[i].from and not config_tmp.rows[i - 1].from then
-                config_rows.children[i].destroy()
-                config_tmp.rows[i] = nil
-            end
-        else
-            if config_rows.children[i] then
-                config_rows.children[i].destroy()
-            end
-        end
+--- @param gui_config_rows LuaGuiElement
+--- @param config_tmp PresetConfig
+--- @param do_scroll boolean?
+function mi_gui.update_rows(gui_config_rows, config_tmp, do_scroll)
+    while #gui_config_rows.children < #config_tmp.rows do
+        gui.add(gui_config_rows, { mi_gui.templates.config_row(#gui_config_rows.children + 1) })
+    end
+    while #gui_config_rows.children > #config_tmp.rows do
+        local child = gui_config_rows.children[#gui_config_rows.children]
+        child.destroy()
+    end
+
+    for index, row_config in ipairs(config_tmp.rows) do
+        mi_gui.update_row(gui_config_rows, row_config, index)
+    end
+
+    if do_scroll then
+        gui_config_rows.scroll_to_bottom()
     end
 end
 
---- @param config_rows LuaGuiElement
---- @param c int row index
---- @param config_tmp PresetConfig
---- @param do_scroll boolean?
-function mi_gui.extend_rows(config_rows, c, config_tmp, do_scroll)
-    if not config_rows.children[c + 1] then
-        gui.add(config_rows, { mi_gui.templates.config_row(c + 1) })
-        config_tmp.rows[c + 1] = types.make_row_config()
-        if do_scroll then
-            config_rows.scroll_to_bottom()
-        end
-    end
-end
 
 --- @param module_row LuaGuiElement
 --- @param slots int
@@ -584,18 +567,17 @@ function mi_gui.update_module_set(module_set, slots, config_set)
     end
 end
 
---- @param pdata PlayerConfig
+--- @param gui_config_rows LuaGuiElement
 --- @param row_config RowConfig
 --- @param index int
-function mi_gui.update_row(pdata, row_config, index)
+function mi_gui.update_row(gui_config_rows, row_config, index)
     local assembler = row_config.from
 
-    local config_rows = pdata.gui.main.config_rows
-    if not (config_rows and config_rows.valid) then return end
-    local row = config_rows.children[index]
+    if not (gui_config_rows and gui_config_rows.valid) then return end
+    local row = gui_config_rows.children[index]
     if not row then
         local row_template = mi_gui.templates.config_row(index)
-        local _, first = gui.add(config_rows, { row_template })
+        local _, first = gui.add(gui_config_rows, { row_template })
         row = first
     end
     row.assembler.elem_value = assembler
@@ -607,6 +589,7 @@ function mi_gui.update_row(pdata, row_config, index)
             for _, elem in pairs(row.module_set.children) do
                 elem.destroy()
             end
+            row.module_set.destroy()
         end
     else
         local slots = storage.name_to_slot_count[row_config.from]
@@ -635,16 +618,7 @@ function mi_gui.update_contents(pdata, clear)
         pdata.gui.main.default_module_set.visible = false
     end
 
-    local index = 0
-    for _, row_config in pairs(config_tmp.rows) do
-        index = index + 1
-        mi_gui.update_row(pdata, row_config, index)
-    end
-    for i = index, math.max(index, START_SIZE) do
-        mi_gui.extend_rows(pdata.gui.main.config_rows, i, config_tmp)
-    end
-
-    mi_gui.shrink_rows(pdata.gui.main.config_rows, table_size(pdata.gui.main.config_rows.children), config_tmp)
+    mi_gui.update_rows(pdata.gui.main.config_rows, config_tmp)
 end
 
 --- @param player LuaPlayer
@@ -781,11 +755,7 @@ mi_gui.handlers = {
         end,
         --- @param e MiEventInfo
         clear_all = function(e)
-            local tmp = types.make_preset_config()
-            for i = 1, START_SIZE do
-                tmp.rows[i] = types.make_row_config()
-            end
-            e.pdata.config_tmp = tmp
+            e.pdata.config_tmp = types.make_preset_config()
             mi_gui.update_contents(e.pdata)
         end,
         --- @param e MiEventInfo
@@ -844,21 +814,12 @@ mi_gui.handlers = {
                 end
             end
 
-            local c = table_size(config_tmp.rows)
+            config_tmp.rows[index].from = elem_value --[[@as string]]
 
-            if not elem_value then
-                config_tmp.rows[index] = types.make_row_config()
-                mi_gui.shrink_rows(config_rows, c, config_tmp)
-            else
-                config_tmp.rows[index].from = elem_value --[[@as string]]
-            end
+            -- TODO ensure the module set is valid for the entity (probably don't change the entity if there's invalid modules, and show a message)
+            util.normalize_preset_config(config_tmp)
 
-            if config_tmp.rows[index] then
-                mi_gui.update_row(e.pdata, config_tmp.rows[index], index)
-            end
-            if index == c then
-                mi_gui.extend_rows(config_rows, c, config_tmp, true)
-            end
+            mi_gui.update_rows(e.pdata.gui.main.config_rows, config_tmp)
         end,
 
         --- @param e MiEventInfo
@@ -917,7 +878,7 @@ mi_gui.handlers = {
                 end
             end
 
-            util.resize_module_set(module_config_set)
+            util.normalize_module_set(module_config_set)
 
             if row_index then
                 mi_gui.update_module_set(config_rows.children[row_index].module_set, slot_count, module_config_set)
@@ -1001,17 +962,8 @@ mi_gui.handlers = {
             if not preset then return end
 
             pdata.config_tmp = table.deep_copy(preset)
-            -- Normalize the table, filing in any lower indexes
-            -- Normally not needed, but in case of a bad blueprint import or something
-            local max_index = START_SIZE
-            for k, _ in pairs(pdata.config_tmp.rows) do
-                max_index = math.max(max_index, k)
-            end
-            for i = 1, max_index do
-                if not pdata.config_tmp.rows[i] then
-                    pdata.config_tmp.rows[i] = types.make_row_config()
-                end
-            end
+            -- Normalize the config
+            util.normalize_preset_config(pdata.config_tmp)
             pdata.config = table.deep_copy(pdata.config_tmp)
 
             --TODO save the last loaded/saved preset somewhere to fill the textfield

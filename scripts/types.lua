@@ -80,7 +80,9 @@ function types.make_preset_config()
     return {
         use_default = false,
         default = types.make_module_config_set(),
-        rows = {},
+        rows = {
+            types.make_row_config()
+        },
     }
 end
 

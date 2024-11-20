@@ -88,7 +88,7 @@ function import_export.import_config(player, bp_string)
                     config[config_index] = { cTable = ent.items or {}, from = ent.name, to = modules }
                 end
             end
-            for i = 1, START_SIZE do
+            for i = 1, #config do
                 if not config[i] then
                     config[i] = { cTable = {}, to = {} }
                 end
