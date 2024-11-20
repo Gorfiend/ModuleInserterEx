@@ -544,6 +544,7 @@ function mi_gui.update_modules(module_row, slots, module_config)
     for i = 1, slots do
         local child = button_table.children[i]
         child.elem_value = module_list[i]
+        -- TODO if this is the first slot, and the setting for fill from first is set, add that info to the tooltip
         child.tooltip = module_list[i] and prototypes.item[module_list[i].name].localised_name or { "module-inserter-choose-module" }
     end
 end

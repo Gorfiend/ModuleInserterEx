@@ -183,6 +183,9 @@ local function on_player_selected_area(e)
                 entity_config = module_config_set.configs[1]
             end
             if entity_config then
+                if not util.module_config_has_entries(entity_config) then
+                    goto continue
+                end
                 if (i % max_proxies == 0) then
                     delay = delay + 1
                 end

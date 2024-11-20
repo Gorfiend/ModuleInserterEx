@@ -116,12 +116,7 @@ end
 --- @param module_config ModuleConfig
 --- @return boolean
 function util.module_config_has_entries(module_config)
-    for _, value in pairs(module_config.module_list) do
-        if value then
-            return true
-        end
-    end
-    return false
+    return #module_config.module_list > 0
 end
 
 --- @param row_config RowConfig
