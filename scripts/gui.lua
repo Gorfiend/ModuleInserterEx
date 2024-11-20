@@ -1,18 +1,21 @@
 local mod_gui = require("__core__.lualib.mod-gui")
+
 local table = require("__flib__.table")
 local gui = require("__flib__.gui")
+
 local import_export = require("scripts.import-export")
 local types = require("scripts.types")
 local util = require("scripts.util")
 
 local mi_gui = {}
 mi_gui.templates = {
+    --- @param index int
     --- @param assembler string?
     --- @return flib.GuiElemDef
-    assembler_button = function(assembler)
+    assembler_button = function(index, assembler)
         return {
             type = "choose-elem-button",
-            name = "assembler",
+            name = index,
             style = "slot_button",
             style_mods = { right_margin = 6 },
             handler = { [defines.events.on_gui_elem_changed] = mi_gui.handlers.main.choose_assembler },
@@ -93,7 +96,7 @@ mi_gui.templates = {
                     column_count = 3,
                     name = "target_section",
                     children = {
-                        mi_gui.templates.assembler_button(),
+                        mi_gui.templates.assembler_button(1),
                     },
                     style_mods = {
                         margin = 5,
@@ -199,6 +202,7 @@ mi_gui.templates = {
                 {
                     type = "flow",
                     name = "titlebar_flow",
+                    drag_target = "window",
                     children = {
                         { type = "label",        style = "frame_title",               caption = caption,                            elem_mods = { ignored_by_interaction = true } },
                         { type = "empty-widget", style = "flib_titlebar_drag_handle", elem_mods = { ignored_by_interaction = true } },
@@ -284,6 +288,7 @@ function mi_gui.create(player_index)
                 {
                     type = "flow",
                     name = "titlebar_flow",
+                    drag_target = "main_window",
                     children = {
                         {
                             type = "label",
@@ -504,7 +509,6 @@ function mi_gui.create(player_index)
         scroll_pane = refs.scroll_pane,
     }
 
-    refs.titlebar_flow.drag_target = refs.main_window
     refs.main_window.force_auto_center()
     mi_gui.update_contents(pdata)
     refs.main_window.visible = false
@@ -596,7 +600,26 @@ function mi_gui.update_module_set(module_set, slots, config_set)
 
     while #module_set.children > #config_set.configs do
         module_set.children[#module_set.children].destroy()
-        -- module_set.children[#module_set.children] = nil
+    end
+end
+
+--- @param gui_target_table LuaGuiElement
+--- @param target_config TargetConfig
+function mi_gui.update_target_section(gui_target_table, target_config)
+    local target_button_count = #target_config.entities + 1
+    -- Add or destroy buttons as needed
+    while #gui_target_table.children < target_button_count do
+        gui.add(gui_target_table, { mi_gui.templates.assembler_button(#gui_target_table.children + 1) })
+    end
+    while #gui_target_table.children > target_button_count do
+        gui_target_table.children[#gui_target_table.children].destroy()
+    end
+
+    for i = 1, target_button_count do
+        local child = gui_target_table.children[i]
+        local target = target_config.entities[i]
+        child.elem_value = target
+        child.tooltip = util.get_localised_entity_name(target, { "module-inserter-choose-assembler" })
     end
 end
 
@@ -604,8 +627,6 @@ end
 --- @param row_config RowConfig
 --- @param index int
 function mi_gui.update_row(gui_config_rows, row_config, index)
-    local assembler = row_config.from
-
     if not (gui_config_rows and gui_config_rows.valid) then return end
     local row = gui_config_rows.children[index]
     if not row then
@@ -613,11 +634,10 @@ function mi_gui.update_row(gui_config_rows, row_config, index)
         local _, first = gui.add(gui_config_rows, { row_template })
         row = first
     end
-    local assembler_button = row.target_frame.target_section.assembler
-    assembler_button.elem_value = assembler
-    assembler_button.tooltip = assembler and prototypes.entity[assembler] and prototypes.entity[assembler].localised_name or { "module-inserter-choose-assembler" }
 
-    if not assembler then
+    mi_gui.update_target_section(row.target_frame.target_section, row_config.target)
+
+    if not util.target_config_has_entries(row_config.target) then
         -- No assembler, delete the module section
         if row.module_set then
             for _, elem in pairs(row.module_set.children) do
@@ -626,7 +646,7 @@ function mi_gui.update_row(gui_config_rows, row_config, index)
             row.module_set.destroy()
         end
     else
-        local slots = storage.name_to_slot_count[row_config.from]
+        local slots = util.get_target_config_max_slots(row_config.target)
         -- Create and update the module section
         if not row.module_set or not row.module_set.valid then
             gui.add(row, mi_gui.templates.module_set())
@@ -770,13 +790,6 @@ mi_gui.handlers = {
         --- @param e MiEventInfo
         apply_changes = function(e, keep_open)
             e.pdata.config = table.deep_copy(e.pdata.config_tmp)
-            --- @type ConfigByEntity
-            e.pdata.config_by_entity = {}
-            for _, config in pairs(e.pdata.config.rows) do
-                if config.from then
-                    e.pdata.config_by_entity[config.from] = table.deep_copy(config.module_configs)
-                end
-            end
             --log(serpent.block(e.pdata.config_by_entity))
             if not keep_open then
                 mi_gui.close(e)
@@ -827,30 +840,37 @@ mi_gui.handlers = {
             local config_tmp = pdata.config_tmp
             local config_rows = pdata.gui.main.config_rows
             if not (config_rows and config_rows.valid) then return end
-            local index = tonumber(e.event.element.parent.parent.parent.name)
-            if not index then return end
+            local row_index = tonumber(e.event.element.parent.parent.parent.name)
+            local target_index = tonumber(e.event.element.name)
+            if not row_index or not target_index then return end
             local element = e.event.element
             if not element then return end
             local elem_value = element.elem_value
 
-            if elem_value == config_tmp.rows[index].from then
+            local old_value = config_tmp.rows[row_index].target.entities[target_index]
+            if elem_value == old_value then
                 return
             end
 
             if elem_value then
-                for k, v in pairs(config_tmp.rows) do
-                    if v.from and k ~= index and v.from == elem_value then
-                        e.event.element.elem_value = nil
-                        e.player.print({ "", prototypes.entity[elem_value].localised_name,
-                            " is already configured in row ", k })
-                        return
+                for k, row in pairs(config_tmp.rows) do
+                    for _, target in pairs(row.target.entities) do
+                        if target and target == elem_value then
+                            e.event.element.elem_value = old_value
+                            if k == row_index then
+                                e.player.print({ "", prototypes.entity[elem_value].localised_name, " is already configured in this row " })
+                            else
+                                e.player.print({ "", prototypes.entity[elem_value].localised_name, " is already configured in row ", k })
+                            end
+                            return
+                        end
                     end
                 end
             end
 
-            config_tmp.rows[index].from = elem_value --[[@as string]]
+            config_tmp.rows[row_index].target.entities[target_index] = elem_value --[[@as string]]
 
-            local do_scroll = elem_value and index == #config_tmp.rows
+            local do_scroll = elem_value and row_index == #config_tmp.rows
 
             -- TODO ensure the module set is valid for the entity (probably don't change the entity if there's invalid modules, and show a message)
             util.normalize_preset_config(config_tmp)
@@ -871,43 +891,40 @@ mi_gui.handlers = {
 
             --- @type ModuleConfigSet
             local module_config_set
-            local entity_proto = nil
+            --- @type TargetConfig
+            local target_config
+            local is_default_config = false
             local row_index = nil
             local config_set_index = nil
             local row_config = nil
+            local slot_count
             if element.parent.parent.parent.parent.name == "default_row" then
+                is_default_config = true
                 module_config_set = config_tmp.default
                 config_set_index = tonumber(element.parent.name)
+                slot_count = storage.max_slot_count
             else
                 row_index = tonumber(element.parent.parent.parent.parent.name)
                 config_set_index = tonumber(element.parent.name)
                 if not row_index or not config_set_index then return end
                 row_config = config_tmp.rows[row_index]
                 module_config_set = row_config.module_configs
-                entity_proto = row_config.from and prototypes.entity[row_config.from]
-                if not entity_proto then return end
+                target_config = row_config.target
+                slot_count = util.get_target_config_max_slots(row_config.target)
             end
 
             local module_config = module_config_set.configs[config_set_index]
-            if element.elem_value and row_config and row_config.from then
-                -- If a normal row with an assembler selected, check if the module is valid
-                local proto = prototypes.item[element.elem_value.name]
-                local itemEffects = proto.module_effects
-                if entity_proto and itemEffects then
-                    for name, effect in pairs(itemEffects) do
-                        if effect > 0 and not entity_proto.allowed_effects[name] then
-                            e.player.print({ "inventory-restriction.cant-insert-module", proto.localised_name,
-                                entity_proto.localised_name })
-                                module_config[slot] = nil
-                            element.elem_value = nil
-                            break
-                        end
-                    end
+            if element.elem_value and target_config then
+                -- If a normal row with assembler targets selected, check if the module is valid
+                local valid, error = util.module_valid_for_config(element.elem_value.name, target_config)
+                if not valid then
+                    e.player.print(error)
+                    element.elem_value = module_config.module_list[slot]
+                    return
                 end
             end
             module_config.module_list[slot] = util.normalize_id_quality_pair(element.elem_value --[[@as ItemIDAndQualityIDPair]])
 
-            local slot_count = entity_proto and entity_proto.module_inventory_size or storage.max_slot_count
             if slot == 1 and e.player.mod_settings["module_inserter_fill_all"].value then
                 for i = 2, slot_count do
                     module_config.module_list[i] = module_config.module_list[slot]
@@ -916,7 +933,7 @@ mi_gui.handlers = {
 
             util.normalize_module_set(module_config_set)
 
-            if row_index then
+            if not is_default_config then
                 mi_gui.update_module_set(config_rows.children[row_index].module_set, slot_count, module_config_set)
             else
                 mi_gui.update_module_set(e.pdata.gui.main.default_module_set, slot_count, module_config_set)

@@ -1,4 +1,3 @@
-
 --- @class (exact) GlobalData
 --- @field to_create {[int]:{[int]:ToCreateData}}
 --- @field name_to_slot_count {[string]:int} Name of all entities mapped to their module slot count
@@ -10,7 +9,6 @@
 --- @field last_preset string
 --- @field config PresetConfig
 --- @field config_tmp PresetConfig
---- @field config_by_entity ConfigByEntity
 --- @field saved_presets SavedPresets
 --- @field gui PlayerGui
 --- @field gui_open boolean
@@ -49,8 +47,11 @@
 --- @field rows RowConfig[]
 
 --- @class (exact) RowConfig
---- @field from string? the entity name this config applies to
+--- @field target TargetConfig Target entities to apply these modules to
 --- @field module_configs ModuleConfigSet set of module configs for this row
+
+--- @class (exact) TargetConfig
+--- @field entities string[] List of entities (assemblers) to apply the config to
 
 --- @class (exact) ModuleConfigSet
 --- @field configs ModuleConfig[]
@@ -66,7 +67,7 @@
 
 --- @class (exact) ToCreateData
 --- @field entity LuaEntity
---- @field modules ItemIDAndQualityIDPair[]
+--- @field module_config ModuleConfig
 --- @field player LuaPlayer
 --- @field surface LuaSurface
 
@@ -90,8 +91,16 @@ end
 function types.make_row_config()
     --- @type RowConfig
     return {
-        from = nil,
+        target = types.make_target_config(),
         module_configs = types.make_module_config_set(),
+    }
+end
+
+--- @return TargetConfig
+function types.make_target_config()
+    --- @type TargetConfig
+    return {
+        entities = {}
     }
 end
 

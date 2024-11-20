@@ -1,7 +1,10 @@
+local mod_gui = require("__core__.lualib.mod-gui")
+
 local gui = require("__flib__.gui")
 local migration = require("__flib__.migration")
-local mi_gui = require("scripts.gui")
 local table = require("__flib__.table")
+
+local mi_gui = require("scripts.gui")
 local types = require("scripts.types")
 local util = require("scripts.util")
 
@@ -86,33 +89,6 @@ local function conditional_events(check)
     end
 end
 
---- @param recipe LuaRecipe
---- @param modules ModuleConfig
---- @return LocalisedString?
-local function modules_allowed(recipe, modules)
-    -- TODO really not sure what the checks here should be
-    -- TODO also add the entity in this check?
-    -- TODO may want to cache this result?
-    if recipe.prototype.allowed_module_categories then
-        for _, module in pairs(modules.module_list) do
-            local category = prototypes.item[module.name].category
-            if not recipe.prototype.allowed_module_categories[category] then
-                return { "item-limitation." .. category .. "-effect"}
-            end
-        end
-    end
-    if recipe.prototype.allowed_effects then
-        for _, module in pairs(modules.module_list) do
-            for effect_name, effect_num in pairs(prototypes.item[module.name].module_effects) do
-                if effect_num > 0 and not recipe.prototype.allowed_effects[effect_name] then
-                    local category = prototypes.item[module.name].category
-                    return { "item-limitation." .. category .. "-effect"}
-                end
-            end
-        end
-    end
-end
-
 ---@param e EventData.on_player_selected_area
 local function on_player_selected_area(e)
     local status, err = pcall(function()
@@ -121,12 +97,11 @@ local function on_player_selected_area(e)
         local player = game.get_player(player_index)
         if not player then return end
         local pdata = storage._pdata[player_index]
-        local config = pdata.config_by_entity
-        if not config then
+        local active_preset = pdata.config_tmp
+        if not active_preset then
             player.print({"module-inserter-config-not-set"})
             return
         end
-        local ent_type, target
         local surface = player.surface
         local delay = e.tick --[[@as uint]]
         local max_proxies = settings.global["module_inserter_proxies_per_tick"].value
@@ -141,62 +116,31 @@ local function on_player_selected_area(e)
             --remove existing proxies if we have a config for its target
             -- TODO remove this?
             if entity.name == "item-request-proxy" then
-                target = entity.proxy_target
-                if target and target.valid and (config[target.name] or (pdata.config.use_default and pdata.config.default)) then
-                    entity.destroy{raise_destroy = true}
-                end
-                goto continue
-            end
-
-            local is_ghost = entity.type == "entity-ghost"
-            local function ent_prop(field)
-                if is_ghost then return entity["ghost_"..field] end
-                return entity[field]
-            end
-
-            local module_config_set = config[ent_prop("name")]
-            if not module_config_set and pdata.config.use_default then
-                module_config_set = pdata.config.default
-            end
-            if not module_config_set then
-                goto continue
-            end
-
-
-            ent_type = ent_prop("type")
-            local recipe = ent_type == "assembling-machine" and entity.get_recipe()
-            --- @type ModuleConfig?
-            local entity_config = nil
-            -- add checks for the assembler type, in case this is the default config
-            local messages = {}
-            if recipe then
-                for _, e_config in pairs(module_config_set.configs) do
-                    local message = modules_allowed(recipe, e_config)
-                    if not message then
-                        entity_config = e_config
-                        break
-                    else
-                        messages[message] = message
+                local target = entity.proxy_target
+                if target and target.valid then
+                    local modules, _ = util.find_modules_to_use_for_entity(target, active_preset)
+                    if modules then
+                        entity.destroy{raise_destroy = true}
                     end
                 end
-            else
-                entity_config = module_config_set.configs[1]
+                goto continue
             end
-            if entity_config then
-                if not util.module_config_has_entries(entity_config) then
-                    goto continue
-                end
+
+            local modules, messages = util.find_modules_to_use_for_entity(entity, active_preset)
+
+            if modules then
                 if (i % max_proxies == 0) then
                     delay = delay + 1
                 end
                 if not storage.to_create[delay] then storage.to_create[delay] = {} end
                 storage.to_create[delay][entity.unit_number --[[@as int]]] = {
                     entity = entity,
-                    modules = table.deep_copy(entity_config.module_list),
+                    module_config = table.deep_copy(modules),
                     player = player,
                     surface = surface,
                 }
-            else
+            end
+            if messages then
                 for k, v in pairs(messages) do
                     result_messages[k] = v
                 end
@@ -258,7 +202,7 @@ local function on_player_reverse_selected_area(e)
                 if not storage.to_create[delay] then storage.to_create[delay] = {} end
                 storage.to_create[delay][entity.unit_number] = {
                     entity = entity,
-                    modules = {},
+                    module_config = types.make_module_config(),
                     player = player,
                     surface = surface
                 }
@@ -298,8 +242,8 @@ local function remove_invalid_items()
     local removed_entities = {}
     local removed_modules = {}
 
-    --- @param tbl PresetConfig
-    local function _remove(tbl)
+    --- @param preset PresetConfig
+    local function _clean(preset)
         -- TODO shrink the default config if needed
         --- @param module_config ModuleConfigSet
         local function _clean_module_config(module_config)
@@ -309,26 +253,28 @@ local function remove_invalid_items()
                         mc.module_list[i] = nil
                         removed_modules[m.name] = true
                     end
+            end
+            end
+        end
+        _clean_module_config(preset.default)
+        for _, row in pairs(preset.rows) do
+            for i, target in pairs(row.target.entities) do
+                if target and not entities[target] then
+                    removed_entities[target] = true
+                    row.target.entities[i] = nil
                 end
             end
+            _clean_module_config(row.module_configs)
         end
-        _clean_module_config(tbl.default)
-        for _, config in pairs(tbl.rows) do
-            if (config.from or config.from == false) and not entities[config.from] then
-                removed_entities[config.from] = true
-                config.from = nil
-                config.module_configs = types.make_module_config_set()
-            end
-            _clean_module_config(config.module_configs)
-        end
+        util.normalize_preset_config(preset)
     end
     for _, pdata in pairs(storage._pdata) do
-        _remove(pdata.config)
+        _clean(pdata.config)
         if pdata.config_tmp then
-            _remove(pdata.config_tmp)
+            _clean(pdata.config_tmp)
         end
         for _, preset in pairs(pdata.saved_presets) do
-            _remove(preset)
+            _clean(preset)
         end
     end
     for k in pairs(removed_entities) do
@@ -352,7 +298,6 @@ local function init_player(i)
         last_preset = pdata.last_preset or "",
         config = pdata.config or types.make_preset_config(),
         config_tmp = pdata.config_tmp or types.make_preset_config(),
-        config_by_entity = pdata.config_by_entity or {},
         saved_presets = pdata.saved_presets or {},
         gui = pdata.gui or {},
         gui_open = false,
@@ -380,6 +325,22 @@ script.on_load(function()
 end)
 
 local migrations = {
+    ["7.0.0"] = function ()
+        -- Major update breaking compatibility - remove all storage and existing gui
+        storage = {}
+        for _, player in pairs(game.players) do
+            for _, elem in pairs(player.gui.screen.children) do
+                if elem.get_mod() == "ModuleInserterEx" then
+                    elem.destroy()
+                end
+            end
+            for _, elem in pairs(mod_gui.get_button_flow(player)) do
+                if elem.get_mod() == "ModuleInserterEx" then
+                    elem.destroy()
+                end
+            end
+        end
+    end
 }
 
 script.on_configuration_changed(function(e)
@@ -446,14 +407,6 @@ script.on_event(defines.events.on_player_cursor_stack_changed, function(e)
         local count = inv.get_item_count("module-inserter")
         if count > 0 then
             inv.remove{name = "module-inserter", count = count}
-        end
-    end
-end)
-
-commands.add_command("mi_clean", "", function()
-    for _, egui in pairs(game.player.gui.screen.children) do
-        if egui.get_mod() == "ModuleInserterEx" then
-            egui.destroy()
         end
     end
 end)
