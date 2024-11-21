@@ -11,6 +11,12 @@ util.inventory_defines_map = {
     ["beacon"] = defines.inventory.beacon_modules,
 }
 
+--- @return string
+function util.generate_random_name()
+    -- TODO check this is actually random... seems to always give the same sequence
+    return game.backer_names[math.random(1, #game.backer_names)]
+end
+
 --- @param pair ItemIDAndQualityIDPair?
 --- @return ItemIDAndQualityIDPair?
 function util.normalize_id_quality_pair(pair)

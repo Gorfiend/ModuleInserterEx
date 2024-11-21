@@ -12,15 +12,8 @@ data:extend({
         type = "bool-setting",
         name = prefix .. "close_after_load",
         setting_type = "runtime-per-user",
-        default_value = true,
+        default_value = false,
         order = "a"
-    },
-    {
-        type = "bool-setting",
-        name = prefix .. "overwrite",
-        setting_type = "runtime-per-user",
-        default_value = true,
-        order = "b"
     },
     {
         type = "bool-setting",

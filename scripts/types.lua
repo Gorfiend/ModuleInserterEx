@@ -6,22 +6,24 @@
 --- @field _pdata {[int]:PlayerConfig}
 
 --- @class (exact) PlayerConfig
---- @field last_preset string
---- @field config PresetConfig
---- @field config_tmp PresetConfig
+--- @field active_config PresetConfig One of the presets in saved_presets
+--- @field temp_config PresetConfig? Temporarily save a config so you can revert changes
 --- @field saved_presets SavedPresets
 --- @field gui PlayerGui
 --- @field gui_open boolean
+--- @field naming PresetConfig? preset currently being renamed
+--- @field closing boolean? Is the main window currently closing?
 --- @field pinned boolean Is the gui pinned
 --- @field cursor boolean True when the module inserter item is in this players cursor
 
---- @alias SavedPresets {string:PresetConfig}
+--- @alias SavedPresets PresetConfig[]
 
 --- @alias ConfigByEntity {[string]: ModuleConfigSet}
 
 --- @class (exact) PlayerGui
 --- @field main PlayerGuiMain
 --- @field presets PlayerGuiPresets
+--- @field rename PlayerGuiRename?
 --- @field import PlayerGuiImport?
 
 --- @class (exact) PlayerGuiMain
@@ -33,8 +35,11 @@
 --- @field default_module_set LuaGuiElement
 
 --- @class (exact) PlayerGuiPresets
---- @field textfield LuaGuiElement
 --- @field scroll_pane LuaGuiElement
+
+--- @class (exact) PlayerGuiRename
+--- @field textfield LuaGuiElement
+--- @field window LuaGuiElement
 
 --- @class (exact) PlayerGuiImport
 --- @field textbox LuaGuiElement
@@ -42,6 +47,7 @@
 
 
 --- @class (exact) PresetConfig
+--- @field name string This presets name
 --- @field default ModuleConfigSet
 --- @field use_default boolean
 --- @field rows RowConfig[]
@@ -75,10 +81,12 @@
 local types = {}
 
 
+--- @param name string
 --- @return PresetConfig
-function types.make_preset_config()
+function types.make_preset_config(name)
     --- @type PresetConfig
     return {
+        name = name,
         use_default = false,
         default = types.make_module_config_set(),
         rows = {

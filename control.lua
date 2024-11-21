@@ -97,7 +97,7 @@ local function on_player_selected_area(e)
         local player = game.get_player(player_index)
         if not player then return end
         local pdata = storage._pdata[player_index]
-        local active_preset = pdata.config_tmp
+        local active_preset = pdata.active_config
         if not active_preset then
             player.print({"module-inserter-config-not-set"})
             return
@@ -255,9 +255,9 @@ local function remove_invalid_items()
         util.normalize_preset_config(preset)
     end
     for _, pdata in pairs(storage._pdata) do
-        _clean(pdata.config)
-        if pdata.config_tmp then
-            _clean(pdata.config_tmp)
+        _clean(pdata.active_config)
+        if pdata.temp_config then
+            _clean(pdata.temp_config)
         end
         for _, preset in pairs(pdata.saved_presets) do
             _clean(preset)
@@ -280,11 +280,10 @@ end
 local function init_player(i)
     init_global()
     local pdata = storage._pdata[i] or {}
+    local active_config = pdata.active_config or types.make_preset_config("Default Config")
     storage._pdata[i] = {
-        last_preset = pdata.last_preset or "",
-        config = pdata.config or types.make_preset_config(),
-        config_tmp = pdata.config_tmp or types.make_preset_config(),
-        saved_presets = pdata.saved_presets or {},
+        active_config = active_config,
+        saved_presets = pdata.saved_presets or { active_config },
         gui = pdata.gui or {},
         gui_open = false,
         pinned = false,
