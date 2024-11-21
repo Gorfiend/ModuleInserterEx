@@ -104,7 +104,6 @@ mi_gui.templates = {
                         vertical_spacing = 0,
                         minimal_width = 138,
                         horizontally_stretchable = false,
-                        vertically_stretchable = true,
                     },
                 }
             }
