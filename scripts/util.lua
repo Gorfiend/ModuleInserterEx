@@ -112,9 +112,11 @@ function util.create_request_proxy(data)
     if entity.type == "entity-ghost" then
         local inventory_define = util.inventory_defines_map[entity.ghost_type]
         local module_requests = {}
-        for i = 1, #modules do
-            local target = modules[i]
-            module_requests[i] = createBlueprintInsertPlan(target, i, inventory_define)
+        for i = 1, math.min(#modules, storage.name_to_slot_count[entity.ghost_name]) do
+            local insert_module = modules[i]
+            if insert_module then
+                module_requests[i] = createBlueprintInsertPlan(insert_module, i, inventory_define)
+            end
         end
         entity.insert_plan = module_requests
         return
