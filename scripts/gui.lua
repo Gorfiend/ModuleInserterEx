@@ -186,14 +186,14 @@ mi_gui.templates = {
                     style = "mi_preset_button",
                     handler = mi_gui.handlers.preset.load,
                 },
-                -- TODO export
-                -- {
-                --     type = "sprite-button",
-                --     style = "tool_button",
-                --     sprite = "utility/export_slot",
-                --     tooltip = { "module-inserter-export_tt" },
-                --     handler = mi_gui.handlers.preset.export,
-                -- },
+                {
+                    type = "sprite-button",
+                    name = "export_button",
+                    style = "tool_button",
+                    sprite = "utility/export_slot",
+                    tooltip = { "module-inserter-export-single" },
+                    handler = mi_gui.handlers.preset.export,
+                },
                 {
                     type = "sprite-button",
                     name = "delete_button",
@@ -436,6 +436,7 @@ function mi_gui.create(player_index)
                                         { type = "label", style = "subheader_caption_label", caption = { "module-inserter-config-frame-title" } },
                                         mi_gui.templates.pushers.horizontal,
                                         {
+                                            -- TODO change to reset button
                                             type = "sprite-button",
                                             style = "tool_button_green",
                                             style_mods = { padding = 0 }, ---@diagnostic disable-line: missing-fields
@@ -515,36 +516,42 @@ function mi_gui.create(player_index)
                         },
                         {
                             type = "frame",
+                            name = "preset_frame",
                             style = "inside_shallow_frame",
                             direction = "vertical",
                             children = {
                                 {
                                     type = "frame",
+                                    name = "preset_header",
                                     style = "subheader_frame",
                                     children = {
-                                        { type = "label", style = "subheader_caption_label", caption = { "module-inserter-storage-frame-title" } },
-                                        -- TODO import/export
+                                        {
+                                            type = "label",
+                                            style = "subheader_caption_label",
+                                            caption = { "module-inserter-storage-frame-title" }
+                                        },
                                         mi_gui.templates.pushers.horizontal,
-                                        -- {
-                                        --     type = "sprite-button",
-                                        --     style = "tool_button",
-                                        --     sprite = "mi_import_string",
-                                        --     tooltip = { "module-inserter-import_tt" },
-                                        --     handler = mi_gui.handlers.presets.import,
-                                        -- },
-                                        -- {
-                                        --     type = "sprite-button",
-                                        --     style = "tool_button",
-                                        --     sprite = "utility/export_slot",
-                                        --     tooltip = { "module-inserter-export_tt" },
-                                        --     handler = mi_gui.handlers.presets.export,
-                                        -- },
+                                        {
+                                            type = "sprite-button",
+                                            name = "import_preset_button",
+                                            style = "tool_button",
+                                            sprite = "mi_import_string",
+                                            tooltip = { "module-inserter-import" },
+                                            handler = mi_gui.handlers.presets.import,
+                                        },
+                                        {
+                                            type = "sprite-button",
+                                            name = "export_all_presets_button",
+                                            style = "tool_button",
+                                            sprite = "utility/export_slot",
+                                            tooltip = { "module-inserter-export-all" },
+                                            handler = mi_gui.handlers.presets.export,
+                                        },
                                     }
                                 },
                                 {
                                     type = "flow",
                                     direction = "vertical",
-                                    style_mods = { width = 246, padding = 12, top_padding = 8, vertical_spacing = 10 }, ---@diagnostic disable-line: missing-fields
                                     children = {
                                         {
                                             type = "frame",
@@ -553,15 +560,14 @@ function mi_gui.create(player_index)
                                                 {
                                                     type = "scroll-pane",
                                                     style = "mi_naked_scroll_pane",
-                                                    style_mods = { vertically_stretchable = true, minimal_width = 222 }, ---@diagnostic disable-line: missing-fields
-                                                    name = "scroll_pane",
+                                                    style_mods = { vertically_stretchable = true }, ---@diagnostic disable-line: missing-fields
+                                                    name = "preset_scroll_pane",
                                                 }
                                             }
                                         }
                                     }
                                 },
                                 {
-                                    
                                     type = "flow",
                                     direction = "horizontal",
                                     children = {
@@ -589,7 +595,7 @@ function mi_gui.create(player_index)
         default_module_set = refs.default_module_set,
     }
     pdata.gui.presets = {
-        scroll_pane = refs.scroll_pane,
+        scroll_pane = refs.preset_scroll_pane,
     }
 
     refs.main_window.force_auto_center()
@@ -801,11 +807,10 @@ function mi_gui.update_contents(pdata)
 end
 
 --- @param pdata PlayerConfig
---- @param name string? name to use
 --- @param select boolean? Whether to select the new preset
 --- @param data PresetConfig? data to restore
 --- @return boolean
-function mi_gui.add_preset(pdata, name, select, data)
+function mi_gui.add_preset(pdata, select, data)
     local new_preset = data or types.make_preset_config(name or util.generate_random_name())
     table.insert(pdata.saved_presets, new_preset)
     if select then
@@ -1074,52 +1079,16 @@ mi_gui.handlers = {
 
         --- @param e MiEventInfo
         add = function(e)
-            mi_gui.add_preset(e.pdata, nil, true)
+            mi_gui.add_preset(e.pdata, true)
         end,
 
         --- @param e MiEventInfo
         import = function(e)
-            local stack = e.player.cursor_stack
-            if stack and stack.valid and stack.valid_for_read and (stack.type == "blueprint" or stack.type == "blueprint-book") then
-                local player = e.player
-                local pdata = e.pdata
-                local result, config, name = import_export.import_config(player, stack.export_stack())
-                if not result then return end
-                if result ~= 0 then
-                    player.print({ "failed-to-import-string", name })
-                    return
-                end
-                if name then
-                    mi_gui.add_preset(e.pdata, name, false, config)
-                else
-                    for s_name, data in pairs(config) do
-                        mi_gui.add_preset(e.pdata, s_name, false, data)
-                    end
-                end
-            else
-                mi_gui.create_import_window(e.pdata, e.player)
-            end
+            mi_gui.create_import_window(e.pdata, e.player)
         end,
         --- @param e MiEventInfo
         export = function(e)
-            local text = import_export.export_config(e.player, e.pdata.saved_presets)
-            if not text then return end
-            if e.event.shift then
-                local stack = e.player.cursor_stack
-                if not stack then return end
-                if stack.valid_for_read then
-                    e.player.print("Click with an empty cursor")
-                    return
-                else
-                    if not stack.set_stack { name = "blueprint", count = 1 } then
-                        e.player.print({ "", { "error-while-importing-string" }, " Could not set stack" })
-                        return
-                    end
-                    stack.import_stack(text)
-                end
-            else
-                mi_gui.create_import_window(e.pdata, e.player, text)
-            end
+            mi_gui.create_import_window(e.pdata, e.player, helpers.table_to_json(e.pdata.saved_presets))
         end
     },
     preset = {
@@ -1151,33 +1120,11 @@ mi_gui.handlers = {
 
         --- @param e MiEventInfo
         export = function(e)
-            local pdata = e.pdata
-            local name = e.event.element.parent.select_button.caption
-            local index = e.event.element.parent.tags.preset_row
-            local config = pdata.saved_presets[index]
-            if not config then
-                e.player.print("Preset " .. name .. "not found")
-                return
-            end
-
-            local text = import_export.export_config(e.player, config, name)
-            if not text then return end
-            if e.event.shift then
-                local stack = e.player.cursor_stack
-                if not stack then return end
-                if stack.valid_for_read then
-                    e.player.print("Click with an empty cursor")
-                    return
-                else
-                    if not stack.set_stack { name = "blueprint", count = 1 } then
-                        e.player.print({ "", { "error-while-importing-string" }, " Could not set stack" })
-                        return
-                    end
-                    stack.import_stack(text)
-                end
-            else
-                mi_gui.create_import_window(pdata, e.player, text)
-            end
+            --- @type PresetRowTags
+            local tags = e.event.element.parent.tags
+            local config = e.pdata.saved_presets[tags.preset_index]
+            if not config then return end
+            mi_gui.create_import_window(e.pdata, e.player, helpers.table_to_json(config))
         end,
         --- @param e MiEventInfo
         delete = function(e)
@@ -1208,18 +1155,14 @@ mi_gui.handlers = {
             local player = e.player
             local pdata = e.pdata
             local text_box = pdata.gui.import.textbox
-            local result, config, name = import_export.import_config(player, text_box.text)
-            if not result then return end
-            if result ~= 0 then
-                player.print({ "failed-to-import-string", name })
+            local configs = import_export.import_config(text_box.text)
+            if not configs then
+                -- TODO maybe add a more detailed failure message
+                player.print({ "failed-to-import-string", "Invalid Format" })
                 return
             end
-            if name then
-                mi_gui.add_preset(e.pdata, name, false, config)
-            else
-                for s_name, data in pairs(config) do
-                    mi_gui.add_preset(e.pdata, s_name, false, data)
-                end
+            for _, preset in ipairs(configs) do
+                mi_gui.add_preset(e.pdata, false, preset)
             end
             mi_gui.handlers.import.close_button(e)
         end,

@@ -1,130 +1,150 @@
-
 local import_export = {}
 
-function import_export.export_config(player, config_data, name)
-    local status, result = pcall(function()
-        local to_bp_entities = function(data)
-            local entities = {}
-            local bp_index = 1
-            for i, config in pairs(data) do
-                if config.from then
-                    local items = {}
-                    for _, module in pairs(config.module_list) do
-                        items[module] = items[module] and items[module] + 1 or 1
-                    end
-                    entities[bp_index] = {
-                        entity_number = i,
-                        items = items,
-                        name = config.from,
-                        position = { x = 0, y = i * 5.5 },
-                    }
-                    bp_index = bp_index + 1
-                end
-            end
-            return entities
-        end
-        local inventory, stack, result
-        --export a single preset
-        if name then
-            inventory = game.create_inventory(1)
-            inventory.insert { name = "blueprint" }
-            stack = inventory[1]
-            stack.set_blueprint_entities(to_bp_entities(config_data))
-            stack.label = name
+local checker = {}
 
-            result = stack.export_stack()
-            inventory.destroy()
-            --export all presets
-        else
-            inventory = game.create_inventory(1)
-            inventory.insert { name = "blueprint-book" }
-            local book = inventory[1]
-            local book_inventory = book.get_inventory(defines.inventory.item_main)
-            local index = 1
-            for preset_name, preset_config in pairs(config_data) do
-                book_inventory.insert { name = "blueprint" }
-                book_inventory[index].set_blueprint_entities(to_bp_entities(preset_config))
-                book_inventory[index].label = preset_name
-                index = index + 1
-            end
-            book.label = "ModuleInserter Configuration"
-            result = book.export_stack()
-            inventory.destroy()
-        end
-        return result
-    end)
-    if not status then
-        player.print(result)
-        return false
-    else
-        return result
+--- @alias Checkers {[string]:Checker}
+--- @alias Checker fun(x): boolean
+
+local function is_array(t)
+    local i = 0
+    for _ in pairs(t) do
+        i = i + 1
+        if t[i] == nil then return false end
     end
+    return true
 end
 
---- @param player any
---- @param bp_string any
---- @return int status return of import_stack, or 2 for other errors
---- @return PresetConfig|{[string]:PresetConfig}
---- @return string
---- @nodiscard
-function import_export.import_config(player, bp_string)
-    local status, a, b, c = pcall(function()
-        local to_config = function(entities)
-            if not entities then return end
-            local config = {}
-            local config_index = 0
-            local modules
-            for _, ent in pairs(entities) do
-                if storage.name_to_slot_count[ent.name] then
-                    modules = {}
-                    config_index = config_index + 1
-                    if ent.items then
-                        for module, amount in pairs(ent.items) do
-                            for _ = 1, amount do
-                                modules[table_size(modules) + 1] = module
-                            end
-                        end
-                    end
-                    config[config_index] = { cTable = ent.items or {}, from = ent.name, to = modules }
-                end
-            end
-            for i = 1, #config do
-                if not config[i] then
-                    config[i] = { cTable = {}, to = {} }
-                end
-            end
-            return config
-        end
-
-        local inventory = game.create_inventory(1)
-        inventory.insert { name = "blueprint" }
-        local stack = inventory[1]
-        local result = stack.import_stack(bp_string)
-        if result ~= 0 then return result end
-
-        if stack.type == "blueprint" then
-            local name = stack.label or "ModuleInserter Configuration"
-            local config = to_config(stack.get_blueprint_entities())
-            inventory.destroy()
-            return result, config, name
-        elseif stack.type == "blueprint-book" then
-            local presets = {}
-            local name, item
-            local book_inventory = stack.get_inventory(defines.inventory.item_main)
-            for i = 1, #book_inventory do
-                item = book_inventory[i]
-                name = item.label or "ModuleInserter Configuration"
-                presets[name] = to_config(item.get_blueprint_entities())
-            end
-            return result, presets
-        end
-    end)
-    if not status then
-        player.print("Import failed: " .. a)
-        return 2
-    else
-        return a, b, c
+--- Checks every field passed as defined by checkers param
+--- Removed any keys not present in checkers
+--- @param tbl any
+--- @param checkers Checkers keys mapped to validator function
+--- @return boolean
+local function check_all(tbl, checkers)
+    if type(tbl) ~= "table" then return false end
+    for key, check in pairs(checkers) do
+        if not check(tbl[key]) then return false end
     end
+    for key, value in pairs(tbl) do
+        if checkers[key] then
+            if not checkers[key](value) then
+                return false
+            end
+        else
+            tbl[key] = nil
+        end
+    end
+    return true
+end
+
+--- Run check_all on all elements in the given array
+--- @param arr table checks if it is an array first
+--- @param checkers Checkers
+--- @return boolean
+local function check_all_in_array(arr, checkers)
+    if not is_array(arr) then return false end
+    for _, value in ipairs(arr) do
+        if not check_all(value, checkers) then return false end
+    end
+    return true
+end
+
+--- Run check on all elements in the given array
+--- @param arr table checks if it is an array first
+--- @param check Checker run on every element of the array
+--- @return boolean
+local function check_array(arr, check)
+    if not is_array(arr) then return false end
+    for _, value in ipairs(arr) do
+        if not check(value) then return false end
+    end
+    return true
+end
+
+--- @return boolean
+function checker.preset(preset)
+    if type(preset) ~= "table" then
+        return false
+    end
+
+    if not preset.name then return false end
+
+    return check_all(preset, {
+        name = function(x)
+            return type(x) == "string" and x ~= ""
+        end,
+        default = checker.module_config_set,
+        use_default = function(x)
+            return type(x) == "boolean"
+        end,
+        rows = checker.rows,
+    })
+end
+
+--- @return boolean
+function checker.rows(rows)
+    return check_all_in_array(rows, {
+        target = checker.target_config_set,
+        module_configs = checker.module_config_set,
+    })
+end
+--- @return boolean
+function checker.target_config_set(config_set)
+    return check_all(config_set, {
+        entities = function(x)
+            return check_array(x, function(ent)
+                return prototypes.entity[ent] ~= nil
+            end)
+        end,
+    })
+end
+
+--- @return boolean
+function checker.module_config_set(config_set)
+    return check_all(config_set, {
+        configs = function(x)
+            return check_array(x, checker.module_config)
+        end,
+    })
+end
+
+--- @return boolean
+function checker.module_config(config)
+    return check_all(config, {
+        module_list = function(x)
+            return check_array(x, checker.is_item_quality_pair)
+        end,
+    })
+end
+
+--- @return boolean
+function checker.is_item_quality_pair(item)
+    return check_all(item, {
+        name = function(x)
+            return type(x) == "string" and prototypes.item[x] ~= nil
+        end,
+        quality = function(x)
+            return x == nil or type(x) == "string" and prototypes.quality[x] ~= nil
+        end,
+    })
+end
+
+
+--- @param string string
+--- @return PresetConfig[]?
+--- @nodiscard
+function import_export.import_config(string)
+    source = helpers.json_to_table(string)
+    if type(source) ~= "table" then
+        return nil
+    end
+
+    if not is_array(source) then
+        source = { source }
+    end
+
+    if not check_array(source, checker.preset) then return nil end
+
+    return source
 end
 
 return import_export
