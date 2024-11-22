@@ -93,6 +93,9 @@
 --- @field row_index int index of the row, 0 is the default row
 --- @field slot_index int index of the slot
 
+--- @class (exact) PresetRowTags
+--- @field preset_index int index of the preset
+
 local types = {}
 
 

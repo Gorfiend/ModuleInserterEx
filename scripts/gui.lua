@@ -169,20 +169,21 @@ mi_gui.templates = {
     end,
 
     --- @param index int preset index for this row
-    --- @param name string preset name
-    --- @param selected boolean if this preset is currently selected
     --- @return flib.GuiElemDef
-    preset_row = function(index, name, selected)
+    preset_row = function(index)
         return {
             type = "flow",
             direction = "horizontal",
-            name = index,
+            name = "preset_row_" .. index,
+            --- @type PresetRowTags
+            tags = {
+                preset_index = index,
+            },
             children = {
                 {
                     type = "button",
                     name = "select_button",
-                    caption = name,
-                    style = name == selected and "mi_preset_button_selected" or "mi_preset_button",
+                    style = "mi_preset_button",
                     handler = mi_gui.handlers.preset.load,
                 },
                 -- TODO export
@@ -211,16 +212,6 @@ mi_gui.templates = {
                 },
             }
         }
-    end,
-
-    --- @param pdata PlayerConfig
-    --- @return flib.GuiElemDef
-    preset_rows = function(pdata)
-        local preset_rows = {}
-        for i, preset in ipairs(pdata.saved_presets) do
-            preset_rows[i] = mi_gui.templates.preset_row(i, preset.name, preset == pdata.active_config)
-        end
-        return preset_rows
     end,
 
     pushers = {
@@ -564,7 +555,6 @@ function mi_gui.create(player_index)
                                                     style = "mi_naked_scroll_pane",
                                                     style_mods = { vertically_stretchable = true, minimal_width = 222 }, ---@diagnostic disable-line: missing-fields
                                                     name = "scroll_pane",
-                                                    children = mi_gui.templates.preset_rows(pdata)
                                                 }
                                             }
                                         }
@@ -603,8 +593,8 @@ function mi_gui.create(player_index)
     }
 
     refs.main_window.force_auto_center()
-    mi_gui.update_contents(pdata)
     mi_gui.update_presets(pdata)
+    mi_gui.update_contents(pdata)
     refs.main_window.visible = false
 end
 
@@ -747,7 +737,9 @@ function mi_gui.update_target_section(gui_target_table, target_config)
     local target_button_count = #target_config.entities + 1
     -- Add or destroy buttons as needed
     while #gui_target_table.children < target_button_count do
-        gui.add(gui_target_table, { mi_gui.templates.assembler_button(gui_target_table.children[1].tags.row_index, #gui_target_table.children + 1) })
+        --- @type TargetFrameTags
+        local tags = gui_target_table.tags
+        gui.add(gui_target_table, { mi_gui.templates.assembler_button(tags.row_index, #gui_target_table.children + 1) })
     end
     while #gui_target_table.children > target_button_count do
         gui_target_table.children[#gui_target_table.children].destroy()
@@ -794,13 +786,8 @@ function mi_gui.update_row(gui_config_rows, row_config, row_index)
 end
 
 --- @param pdata PlayerConfig
---- @param clear boolean?
-function mi_gui.update_contents(pdata, clear)
+function mi_gui.update_contents(pdata)
     local active_config = pdata.active_config
-
-    if clear then
-        pdata.gui.main.config_rows.clear()
-    end
 
     pdata.gui.main.default_checkbox.state = active_config.use_default
     if active_config.use_default then
@@ -821,7 +808,6 @@ end
 function mi_gui.add_preset(pdata, name, select, data)
     local new_preset = data or types.make_preset_config(name or util.generate_random_name())
     table.insert(pdata.saved_presets, new_preset)
-    gui.add(pdata.gui.presets.scroll_pane, { mi_gui.templates.preset_row(#pdata.saved_presets, new_preset.name, true) })
     if select then
         pdata.active_config = new_preset
         mi_gui.update_contents(pdata)
@@ -833,6 +819,12 @@ end
 --- @param pdata PlayerConfig
 function mi_gui.update_presets(pdata)
     local preset_scroll = pdata.gui.presets.scroll_pane
+    while #preset_scroll.children > #pdata.saved_presets do
+        preset_scroll.children[#preset_scroll.children].destroy()
+    end
+    while #preset_scroll.children < #pdata.saved_presets do
+        gui.add(preset_scroll, { mi_gui.templates.preset_row(#preset_scroll.children + 1) })
+    end
     for i, preset_flow in ipairs(preset_scroll.children) do
         local preset_button = preset_flow.select_button
         preset_button.caption = pdata.saved_presets[i].name
@@ -1135,7 +1127,9 @@ mi_gui.handlers = {
         --- @param e MiEventInfo
         load = function(e)
             local pdata = e.pdata
-            local index = tonumber(e.event.element.parent.name)
+            --- @type PresetRowTags
+            local tags = e.event.element.parent.tags
+            local index = tags.preset_index
 
             local preset = pdata.saved_presets[index]
             if not preset then return end
@@ -1145,22 +1139,23 @@ mi_gui.handlers = {
             util.normalize_preset_config(pdata.active_config)
             pdata.temp_config = table.deep_copy(pdata.active_config)
 
-            mi_gui.update_contents(pdata, true)
+            mi_gui.update_contents(pdata)
             mi_gui.update_presets(pdata)
 
             local keep_open = not e.player.mod_settings["module_inserter_close_after_load"].value
             if not keep_open then
                 mi_gui.close(e)
+                e.player.print({ "module-inserter-storage-loaded", pdata.active_config.name })
             end
-            e.player.print({ "module-inserter-storage-loaded", pdata.active_config.name })
         end,
 
         --- @param e MiEventInfo
         export = function(e)
             local pdata = e.pdata
             local name = e.event.element.parent.select_button.caption
-            local config = pdata.saved_presets[name]
-            if not config or not name or name == "" then
+            local index = e.event.element.parent.tags.preset_row
+            local config = pdata.saved_presets[index]
+            if not config then
                 e.player.print("Preset " .. name .. "not found")
                 return
             end
@@ -1186,20 +1181,24 @@ mi_gui.handlers = {
         end,
         --- @param e MiEventInfo
         delete = function(e)
-            local parent = e.event.element.parent --[[@as LuaGuiElement]]
-            if #parent.children == 1 then
+            if #e.pdata.saved_presets <= 1 then
                 return
             end
-            local name = parent.select_button.caption --[[@as string]]
-            local pdata = e.pdata
-            pdata.saved_presets[name] = nil
-            parent.destroy()
+            --- @type PresetRowTags
+            local tags = e.event.element.parent.tags
+            local update_selection = (e.pdata.saved_presets[tags.preset_index] == e.pdata.active_config)
+            table.remove(e.pdata.saved_presets, tags.preset_index)
+            if update_selection then
+                e.pdata.active_config = e.pdata.saved_presets[math.min(#e.pdata.saved_presets, tags.preset_index)]
+                mi_gui.update_contents(e.pdata)
+            end
+            mi_gui.update_presets(e.pdata)
         end,
         --- @param e MiEventInfo
         rename = function(e)
-            local parent = e.event.element.parent --[[@as LuaGuiElement]]
-            local preset_index = tonumber(parent.name)
-            e.pdata.naming = e.pdata.saved_presets[preset_index]
+            --- @type PresetRowTags
+            local tags = e.event.element.parent.tags
+            e.pdata.naming = e.pdata.saved_presets[tags.preset_index]
             mi_gui.create_name_window(e.pdata, e.player)
         end,
     },

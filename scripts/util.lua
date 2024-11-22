@@ -13,7 +13,6 @@ util.inventory_defines_map = {
 
 --- @return string
 function util.generate_random_name()
-    -- TODO check this is actually random... seems to always give the same sequence
     return game.backer_names[math.random(1, #game.backer_names)]
 end
 
@@ -112,7 +111,7 @@ function util.create_request_proxy(data)
     if entity.type == "entity-ghost" then
         local inventory_define = util.inventory_defines_map[entity.ghost_type]
         local module_requests = {}
-        for i = 1, math.min(#modules, storage.name_to_slot_count[entity.ghost_name]) do
+        for i = 1, storage.name_to_slot_count[entity.ghost_name] do
             local insert_module = modules[i]
             if insert_module then
                 module_requests[i] = createBlueprintInsertPlan(insert_module, i, inventory_define)
@@ -198,13 +197,13 @@ end
 --- @param module_config ModuleConfig
 --- @return boolean
 function util.module_config_has_entries(module_config)
-    return #module_config.module_list > 0
+    return next(module_config.module_list) ~= nil
 end
 
 --- @param target_config TargetConfig
 --- @return boolean
 function util.target_config_has_entries(target_config)
-    return #target_config.entities > 0
+    return next(target_config.entities) ~= nil
 end
 
 --- @param row_config RowConfig
