@@ -77,6 +77,21 @@
 --- @field player LuaPlayer
 --- @field surface LuaSurface
 
+--- @class (exact) ModuleRowTags
+--- @field row_index int index of the row, 0 is the default row
+--- @field module_row_index int index of the module row this is part of
+
+--- @class (exact) ModuleButtonTags
+--- @field row_index int index of the row, 0 is the default row
+--- @field module_row_index int index of the module row this is part of
+--- @field slot_index int index of the slot
+
+--- @class (exact) TargetFrameTags
+--- @field row_index int index of the row, 0 is the default row
+
+--- @class (exact) TargetButtonTags
+--- @field row_index int index of the row, 0 is the default row
+--- @field slot_index int index of the slot
 
 local types = {}
 

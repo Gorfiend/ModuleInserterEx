@@ -9,10 +9,10 @@ local util = require("scripts.util")
 
 local mi_gui = {}
 mi_gui.templates = {
+    --- @param row_index int
     --- @param index int
-    --- @param assembler string?
     --- @return flib.GuiElemDef
-    assembler_button = function(index, assembler)
+    assembler_button = function(row_index, index)
         return {
             type = "choose-elem-button",
             name = index,
@@ -21,52 +21,72 @@ mi_gui.templates = {
             handler = { [defines.events.on_gui_elem_changed] = mi_gui.handlers.main.choose_assembler },
             elem_type = "entity",
             elem_filters = { { filter = "name", name = storage.module_entities } },
-            entity = assembler,
-            tooltip = assembler and prototypes.entity[assembler].localised_name or { "module-inserter-choose-assembler" }
+            tooltip = { "module-inserter-choose-assembler" },
+            --- @type TargetButtonTags
+            tags = {
+                row_index = row_index,
+                slot_index = index,
+            }
         }
     end,
 
-    --- @param index int
+    --- @param module_row_tags ModuleRowTags
+    --- @param slot_index int
     --- @return flib.GuiElemDef
-    module_button = function(index)
+    module_button = function(module_row_tags, slot_index)
         -- TODO This could be filtered based on the current assembler to only valid modules (e.g. hide productivity for beacons)
         return {
             type = "choose-elem-button",
             style = "slot_button",
-            name = index,
+            name = "module_button_" .. slot_index,
             handler = { [defines.events.on_gui_elem_changed] = mi_gui.handlers.main.choose_module },
             elem_type = "item-with-quality",
             elem_filters = { { filter = "type", type = "module" } },
+            --- @type ModuleButtonTags
+            tags = {
+                row_index = module_row_tags.row_index,
+                module_row_index = module_row_tags.module_row_index,
+                slot_index = slot_index,
+            }
         }
     end,
 
+    --- @param row_index int
+    --- @param module_row_index int
     --- @param slots int
-    --- @param name string
     --- @return flib.GuiElemDef
-    module_row = function(slots, name)
+    module_row = function(row_index, module_row_index, slots)
+        --- @type ModuleRowTags
+        local module_row_tags = {
+            row_index = row_index,
+            module_row_index = module_row_index,
+        }
         local module_table = {
             type = "table",
+            name = "module_row_table_" .. module_row_index,
             column_count = 8,
-            name = name,
-            children = {},
+            tags = module_row_tags,
             style_mods = {
                 margin = 5,
                 padding = 0,
                 horizontal_spacing = 0,
                 vertical_spacing = 0,
             },
+            children = {},
         }
         for m = 1, slots do
-            module_table.children[m] = mi_gui.templates.module_button(m)
+            module_table.children[m] = mi_gui.templates.module_button(module_row_tags, m)
         end
         local row_frame = {
             type = "frame",
+            name = "module_row_frame_" .. module_row_index,
             style = "inside_shallow_frame",
+            tags = module_row_tags,
             children = {
                 module_table
-            }
+            },
         }
-        return row_frame
+    return row_frame
     end,
 
     --- @param name string? Name to give this gui element
@@ -80,8 +100,9 @@ mi_gui.templates = {
         }
     end,
 
+    --- @param row_index int
     --- @return flib.GuiElemDef
-    target_section = function()
+    target_section = function(row_index)
         return {
             type = "frame",
             style = "inside_shallow_frame",
@@ -89,14 +110,15 @@ mi_gui.templates = {
             style_mods = {
                 horizontally_stretchable = false,
             },
+            --- @type TargetFrameTags
+            tags = {
+                row_index = row_index,
+            },
             children = {
                 {
                     type = "table",
                     column_count = 3,
                     name = "target_section",
-                    children = {
-                        mi_gui.templates.assembler_button(1),
-                    },
                     style_mods = {
                         margin = 5,
                         padding = 0,
@@ -105,15 +127,21 @@ mi_gui.templates = {
                         minimal_width = 138,
                         horizontally_stretchable = false,
                     },
+                    --- @type TargetFrameTags
+                    tags = {
+                        row_index = row_index,
+                    },
+                    children = {
+                        mi_gui.templates.assembler_button(row_index, 1),
+                    },
                 }
             }
         }
     end,
 
     --- @param index int config row index for this row
-    --- @param config RowConfig?
     --- @return flib.GuiElemDef
-    config_row = function(index, config)
+    config_row = function(index)
         return {
             type = "frame",
             name = index,
@@ -125,7 +153,7 @@ mi_gui.templates = {
                 minimal_width = 525,
             },
             children = {
-                mi_gui.templates.target_section(),
+                mi_gui.templates.target_section(index),
             }
         }
     end,
@@ -134,8 +162,8 @@ mi_gui.templates = {
     --- @return flib.GuiElemDef
     config_rows = function(config_tmp)
         local config_rows = {}
-        for index, row_config in ipairs(config_tmp.rows) do
-            config_rows[index] = mi_gui.templates.config_row(index, row_config)
+        for index, _ in ipairs(config_tmp.rows) do
+            config_rows[index] = mi_gui.templates.config_row(index)
         end
         return config_rows
     end,
@@ -675,10 +703,12 @@ function mi_gui.update_modules(module_row, slots, module_config)
     local button_table = module_row.children[1]
     slots = slots or 0
     local module_list = module_config.module_list or {}
+    --- @type ModuleRowTags
+    local module_row_tags = module_row.tags
 
     -- Add or destroy buttons as needed
     while #button_table.children < slots do
-        gui.add(button_table, { mi_gui.templates.module_button(#button_table.children + 1) })
+        gui.add(button_table, { mi_gui.templates.module_button(module_row_tags, #button_table.children + 1) })
     end
     while #button_table.children > slots do
         button_table.children[#button_table.children].destroy()
@@ -692,14 +722,15 @@ function mi_gui.update_modules(module_row, slots, module_config)
     end
 end
 
+--- @param row_index int index of the row being updated (0 for the default config)
 --- @param module_set LuaGuiElement
 --- @param slots int
 --- @param config_set ModuleConfigSet
-function mi_gui.update_module_set(module_set, slots, config_set)
+function mi_gui.update_module_set(row_index, module_set, slots, config_set)
     for i, config_row in ipairs(config_set.configs) do
         local module_row = module_set.children[i]
         if not module_row then
-            gui.add(module_set, mi_gui.templates.module_row(slots, "" .. i))
+            gui.add(module_set, mi_gui.templates.module_row(row_index, i, slots))
         end
         module_row = module_set.children[i]
         mi_gui.update_modules(module_row, slots, config_row)
@@ -716,7 +747,7 @@ function mi_gui.update_target_section(gui_target_table, target_config)
     local target_button_count = #target_config.entities + 1
     -- Add or destroy buttons as needed
     while #gui_target_table.children < target_button_count do
-        gui.add(gui_target_table, { mi_gui.templates.assembler_button(#gui_target_table.children + 1) })
+        gui.add(gui_target_table, { mi_gui.templates.assembler_button(gui_target_table.children[1].tags.row_index, #gui_target_table.children + 1) })
     end
     while #gui_target_table.children > target_button_count do
         gui_target_table.children[#gui_target_table.children].destroy()
@@ -732,12 +763,12 @@ end
 
 --- @param gui_config_rows LuaGuiElement
 --- @param row_config RowConfig
---- @param index int
-function mi_gui.update_row(gui_config_rows, row_config, index)
+--- @param row_index int index of the row config being updated
+function mi_gui.update_row(gui_config_rows, row_config, row_index)
     if not (gui_config_rows and gui_config_rows.valid) then return end
-    local row = gui_config_rows.children[index]
+    local row = gui_config_rows.children[row_index]
     if not row then
-        local row_template = mi_gui.templates.config_row(index)
+        local row_template = mi_gui.templates.config_row(row_index)
         local _, first = gui.add(gui_config_rows, { row_template })
         row = first
     end
@@ -758,7 +789,7 @@ function mi_gui.update_row(gui_config_rows, row_config, index)
         if not row.module_set or not row.module_set.valid then
             gui.add(row, mi_gui.templates.module_set())
         end
-        mi_gui.update_module_set(row.module_set, slots, row_config.module_configs)
+        mi_gui.update_module_set(row_index, row.module_set, slots, row_config.module_configs)
     end
 end
 
@@ -774,7 +805,7 @@ function mi_gui.update_contents(pdata, clear)
     pdata.gui.main.default_checkbox.state = active_config.use_default
     if active_config.use_default then
         pdata.gui.main.default_module_set.visible = true
-        mi_gui.update_module_set(pdata.gui.main.default_module_set, storage.max_slot_count, active_config.default)
+        mi_gui.update_module_set(0, pdata.gui.main.default_module_set, storage.max_slot_count, active_config.default)
     else
         pdata.gui.main.default_module_set.visible = false
     end
@@ -936,15 +967,15 @@ mi_gui.handlers = {
             local active_config = pdata.active_config
             local config_rows = pdata.gui.main.config_rows
             if not (config_rows and config_rows.valid) then return end
-            local row_index = tonumber(e.event.element.parent.parent.parent.name)
-            local target_index = tonumber(e.event.element.name)
-            if not row_index or not target_index then return end
             local element = e.event.element
             if not element then return end
             local elem_value = element.elem_value
 
-            local row_config = active_config.rows[row_index]
-            local old_value = row_config.target.entities[target_index]
+            --- @type TargetButtonTags
+            local tags = e.event.element.tags
+
+            local row_config = active_config.rows[tags.row_index]
+            local old_value = row_config.target.entities[tags.slot_index]
             if elem_value == old_value then
                 return
             end
@@ -954,7 +985,7 @@ mi_gui.handlers = {
                     for _, target in pairs(row.target.entities) do
                         if target and target == elem_value then
                             element.elem_value = old_value
-                            if k == row_index then
+                            if k == tags.row_index then
                                 e.player.print({ "", prototypes.entity[elem_value].localised_name, " is already configured in this row " })
                             else
                                 e.player.print({ "", prototypes.entity[elem_value].localised_name, " is already configured in row ", k })
@@ -972,9 +1003,13 @@ mi_gui.handlers = {
             end
 
 
-            row_config.target.entities[target_index] = elem_value --[[@as string]]
+            if elem_value then
+                row_config.target.entities[tags.slot_index] = elem_value --[[@as string]]
+            else
+                table.remove(row_config.target.entities, tags.slot_index)
+            end
 
-            local do_scroll = elem_value and row_index == #active_config.rows
+            local do_scroll = elem_value and tags.row_index == #active_config.rows
 
             -- TODO ensure the module set is valid for the entity (probably don't change the entity if there's invalid modules, and show a message)
             util.normalize_preset_config(active_config)
@@ -990,34 +1025,28 @@ mi_gui.handlers = {
             if not active_config then return end
             local config_rows = e.pdata.gui.main.config_rows
             if not (config_rows and config_rows.valid) then return end
-            local slot = tonumber(element.name)
-            if not slot then return end
 
             --- @type ModuleConfigSet
             local module_config_set
             --- @type TargetConfig
             local target_config
-            local is_default_config = false
-            local row_index = nil
-            local config_set_index = nil
+            --- @type ModuleButtonTags
+            local module_button_tags = element.tags
+            local slot = module_button_tags.slot_index
+            local is_default_config = (module_button_tags.row_index == 0)
             local row_config = nil
             local slot_count
-            if element.parent.parent.parent.parent.name == "default_row" then
-                is_default_config = true
+            if is_default_config then
                 module_config_set = active_config.default
-                config_set_index = tonumber(element.parent.name)
                 slot_count = storage.max_slot_count
             else
-                row_index = tonumber(element.parent.parent.parent.parent.name)
-                config_set_index = tonumber(element.parent.name)
-                if not row_index or not config_set_index then return end
-                row_config = active_config.rows[row_index]
+                row_config = active_config.rows[module_button_tags.row_index]
                 module_config_set = row_config.module_configs
                 target_config = row_config.target
                 slot_count = util.get_target_config_max_slots(row_config.target)
             end
 
-            local module_config = module_config_set.configs[config_set_index]
+            local module_config = module_config_set.configs[module_button_tags.module_row_index]
             if element.elem_value and target_config then
                 -- If a normal row with assembler targets selected, check if the module is valid
                 local valid, error = util.module_valid_for_config(element.elem_value.name, target_config)
@@ -1038,9 +1067,9 @@ mi_gui.handlers = {
             util.normalize_module_set(slot_count, module_config_set)
 
             if not is_default_config then
-                mi_gui.update_module_set(config_rows.children[row_index].module_set, slot_count, module_config_set)
+                mi_gui.update_module_set(module_button_tags.row_index, config_rows.children[module_button_tags.row_index].module_set, slot_count, module_config_set)
             else
-                mi_gui.update_module_set(e.pdata.gui.main.default_module_set, slot_count, module_config_set)
+                mi_gui.update_module_set(0, e.pdata.gui.main.default_module_set, slot_count, module_config_set)
             end
         end,
         --- @param e MiEventInfo
