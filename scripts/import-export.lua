@@ -92,6 +92,7 @@ function checker.target_config_set(config_set)
     return check_all(config_set, {
         entities = function(x)
             return check_array(x, function(ent)
+                -- TODO instead of failing with a missing prototype, maybe do a clean after and notify of the missing things?
                 return prototypes.entity[ent] ~= nil
             end)
         end,
@@ -120,6 +121,7 @@ end
 function checker.is_item_quality_pair(item)
     return check_all(item, {
         name = function(x)
+            -- TODO instead of failing with a missing prototype, maybe do a clean after and notify of the missing things?
             return type(x) == "string" and prototypes.item[x] ~= nil
         end,
         quality = function(x)

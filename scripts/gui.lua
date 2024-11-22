@@ -7,6 +7,14 @@ local import_export = require("scripts.import-export")
 local types = require("scripts.types")
 local util = require("scripts.util")
 
+local TARGET_SECTION_WIDTH = 170
+local TABLE_STYLE_MODS = {
+    margin = 5,
+    padding = 0,
+    horizontal_spacing = 0,
+    vertical_spacing = 0,
+}
+
 local mi_gui = {}
 mi_gui.templates = {
     --- @param row_index int
@@ -17,7 +25,6 @@ mi_gui.templates = {
             type = "choose-elem-button",
             name = index,
             style = "slot_button",
-            style_mods = { right_margin = 6 },
             handler = { [defines.events.on_gui_elem_changed] = mi_gui.handlers.main.choose_assembler },
             elem_type = "entity",
             elem_filters = { { filter = "name", name = storage.module_entities } },
@@ -66,12 +73,7 @@ mi_gui.templates = {
             name = "module_row_table_" .. module_row_index,
             column_count = 8,
             tags = module_row_tags,
-            style_mods = {
-                margin = 5,
-                padding = 0,
-                horizontal_spacing = 0,
-                vertical_spacing = 0,
-            },
+            style_mods = TABLE_STYLE_MODS,
             children = {},
         }
         for m = 1, slots do
@@ -89,13 +91,14 @@ mi_gui.templates = {
     return row_frame
     end,
 
-    --- @param name string? Name to give this gui element
+    --- @param name string Name to give this gui element
     --- @return flib.GuiElemDef
     module_set = function(name)
         return {
             type = "flow",
             name = name or "module_set",
             direction = "vertical",
+            style_mods = { horizontally_stretchable = true },
             children = {},
         }
     end,
@@ -108,6 +111,7 @@ mi_gui.templates = {
             style = "inside_shallow_frame",
             name = "target_frame",
             style_mods = {
+                minimal_width = TARGET_SECTION_WIDTH,
                 horizontally_stretchable = false,
             },
             --- @type TargetFrameTags
@@ -117,16 +121,9 @@ mi_gui.templates = {
             children = {
                 {
                     type = "table",
-                    column_count = 3,
+                    column_count = 4,
                     name = "target_section",
-                    style_mods = {
-                        margin = 5,
-                        padding = 0,
-                        horizontal_spacing = 0,
-                        vertical_spacing = 0,
-                        minimal_width = 138,
-                        horizontally_stretchable = false,
-                    },
+                    style_mods = TABLE_STYLE_MODS,
                     --- @type TargetFrameTags
                     tags = {
                         row_index = row_index,
@@ -146,14 +143,9 @@ mi_gui.templates = {
             type = "frame",
             name = index,
             style = "deep_frame_in_shallow_frame",
-            direction = "horizontal",
-            style_mods = {
-                margin = 2,
-                padding = 2,
-                minimal_width = 525,
-            },
             children = {
                 mi_gui.templates.target_section(index),
+                mi_gui.templates.module_set("module_set"),
             }
         }
     end,
@@ -315,7 +307,6 @@ mi_gui.templates = {
                             type = "textfield",
                             name = "rename_textfield",
                             text = name,
-                            style_mods = { width = 200 }, ---@diagnostic disable-line: missing-fields
                             icon_selector = true,
                             handler = { [defines.events.on_gui_confirmed] = mi_gui.handlers.rename.confirm,}
                         },
@@ -367,229 +358,211 @@ function mi_gui.create(player_index)
     if not player or not pdata then return end
 
     local refs = gui.add(player.gui.screen, {
-        {
-            type = "frame",
-            style_mods = { maximal_height = 750 }, ---@diagnostic disable-line: missing-fields
-            direction = "vertical",
-            handler = { [defines.events.on_gui_closed] = mi_gui.handlers.main.close_window },
-            name = "main_window",
-            children = {
-                {
-                    type = "flow",
-                    name = "titlebar_flow",
-                    drag_target = "main_window",
-                    children = {
-                        {
-                            type = "label",
-                            style = "frame_title",
-                            caption = "Module Inserter",
-                            elem_mods = { ignored_by_interaction = true }, ---@diagnostic disable-line: missing-fields
-                        },
-                        {
-                            type = "empty-widget",
-                            style = "flib_titlebar_drag_handle",
-                            elem_mods = { ignored_by_interaction = true }, ---@diagnostic disable-line: missing-fields
-                        },
-                        {
-                            type = "sprite-button",
-                            name = "destroy_tool_button",
-                            style = "frame_action_button_red",
-                            sprite = "utility/trash",
-                            tooltip = { "module-inserter-destroy" },
-                            handler = mi_gui.handlers.main.destroy_tool,
-                            visible = player.mod_settings["module_inserter_hide_button"].value --[[@as boolean]],
-                        },
-                        {
-                            type = "sprite-button",
-                            style = "frame_action_button",
-                            tooltip = { "module-inserter-keep-open" },
-                            sprite = pdata.pinned and "mi_pin_black" or "mi_pin_white",
-                            hovered_sprite = "mi_pin_black",
-                            clicked_sprite = "mi_pin_black",
-                            name = "pin_button",
-                            handler = mi_gui.handlers.main.pin,
-                        },
-                        {
-                            type = "sprite-button",
-                            style = "frame_action_button",
-                            sprite = "utility/close",
-                            hovered_sprite = "utility/close_black",
-                            clicked_sprite = "utility/close_black",
-                            handler = mi_gui.handlers.main.close,
-                        }
+        type = "frame",
+        style_mods = { height = 750 }, ---@diagnostic disable-line: missing-fields
+        direction = "vertical",
+        handler = { [defines.events.on_gui_closed] = mi_gui.handlers.main.close_window },
+        name = "main_window",
+        children = {
+            {
+                type = "flow",
+                name = "titlebar_flow",
+                drag_target = "main_window",
+                children = {
+                    {
+                        type = "label",
+                        style = "frame_title",
+                        caption = "Module Inserter",
+                        elem_mods = { ignored_by_interaction = true }, ---@diagnostic disable-line: missing-fields
+                    },
+                    {
+                        type = "empty-widget",
+                        style = "flib_titlebar_drag_handle",
+                        elem_mods = { ignored_by_interaction = true }, ---@diagnostic disable-line: missing-fields
+                    },
+                    {
+                        type = "sprite-button",
+                        name = "destroy_tool_button",
+                        style = "frame_action_button_red",
+                        sprite = "utility/trash",
+                        tooltip = { "module-inserter-destroy" },
+                        handler = mi_gui.handlers.main.destroy_tool,
+                        visible = player.mod_settings["module_inserter_hide_button"].value --[[@as boolean]],
+                    },
+                    {
+                        type = "sprite-button",
+                        style = "frame_action_button",
+                        tooltip = { "module-inserter-keep-open" },
+                        sprite = pdata.pinned and "mi_pin_black" or "mi_pin_white",
+                        hovered_sprite = "mi_pin_black",
+                        clicked_sprite = "mi_pin_black",
+                        name = "pin_button",
+                        handler = mi_gui.handlers.main.pin,
+                    },
+                    {
+                        type = "sprite-button",
+                        style = "frame_action_button",
+                        sprite = "utility/close",
+                        hovered_sprite = "utility/close_black",
+                        clicked_sprite = "utility/close_black",
+                        handler = mi_gui.handlers.main.close,
                     }
-                },
-                {
-                    type = "flow",
-                    direction = "horizontal",
-                    style = "inset_frame_container_horizontal_flow",
-                    children = {
-                        {
-                            type = "frame",
-                            style = "inside_shallow_frame",
-                            direction = "vertical",
-                            children = {
-                                {
-                                    type = "frame",
-                                    style = "subheader_frame",
-                                    children = {
-                                        { type = "label", style = "subheader_caption_label", caption = { "module-inserter-config-frame-title" } },
-                                        mi_gui.templates.pushers.horizontal,
-                                        {
-                                            -- TODO change to reset button
-                                            type = "sprite-button",
-                                            style = "tool_button_green",
-                                            style_mods = { padding = 0 }, ---@diagnostic disable-line: missing-fields
-                                            handler = mi_gui.handlers.main.apply_changes,
-                                            sprite = "utility/check_mark_white",
-                                            tooltip = { "module-inserter-config-button-apply" }
-                                        },
-                                        {
-                                            type = "sprite-button",
-                                            style = "tool_button_red",
-                                            sprite = "utility/trash",
-                                            tooltip = { "module-inserter-config-button-clear-all" },
-                                            handler = mi_gui.handlers.main.clear_all,
-                                        },
-                                    }
-                                },
-                                {
-                                    type = "flow",
-                                    name = "default_flow",
-                                    direction = "vertical",
-                                    style_mods = { padding = 12 }, ---@diagnostic disable-line: missing-fields
-                                    children = {
-                                        {
-                                            type = "frame",
-                                            name = "default_frame",
-                                            style = "deep_frame_in_shallow_frame",
-                                            style_mods = { horizontally_stretchable = true }, ---@diagnostic disable-line: missing-fields
-                                            children = {
-                                                {
-                                                    type = "flow",
-                                                    direction = "horizontal",
-                                                    name = "default_row",
-                                                    style_mods = { horizontal_spacing = 0, minimal_height = 51, minimal_width = 430 }, ---@diagnostic disable-line: missing-fields
-                                                    children = {
-                                                        {
-                                                            type = "frame",
-                                                            style = "inside_shallow_frame",
-                                                            style_mods = { horizontally_stretchable = true, vertically_stretchable = true }, ---@diagnostic disable-line: missing-fields
-                                                            children = {
-                                                                type = "checkbox",
-                                                                name = "default_checkbox",
-                                                                caption = "Default Modules",
-                                                                state = false,
-                                                                style_mods = {
-                                                                    margin = 6,
-                                                                    horizontally_stretchable = true,
-                                                                    vertically_stretchable = true,
-                                                                    minimal_width = 99,
-                                                                    vertical_align = "center"
-                                                                }, ---@diagnostic disable-line: missing-fields
-                                                                handler = { [defines.events.on_gui_checked_state_changed] = mi_gui.handlers.main.default_checkbox },
-                                                                tooltip = "If checked, will fill any entities not specified below with the modules here", -- TODO move text string to locale
-                                                            }
-                                                        },
-                                                        mi_gui.templates.module_set("default_module_set"),
-                                                    }
+                }
+            },
+            {
+                type = "flow",
+                direction = "horizontal",
+                style = "inset_frame_container_horizontal_flow",
+                children = {
+                    {
+                        type = "frame",
+                        style = "inside_shallow_frame",
+                        direction = "vertical",
+                        children = {
+                            {
+                                type = "frame",
+                                style = "subheader_frame",
+                                children = {
+                                    { type = "label", style = "subheader_caption_label", caption = { "module-inserter-config-frame-title" } },
+                                    mi_gui.templates.pushers.horizontal,
+                                    {
+                                        -- TODO change to reset button
+                                        type = "sprite-button",
+                                        style = "tool_button_green",
+                                        style_mods = { padding = 0 }, ---@diagnostic disable-line: missing-fields
+                                        handler = mi_gui.handlers.main.apply_changes,
+                                        sprite = "utility/check_mark_white",
+                                        tooltip = { "module-inserter-config-button-apply" }
+                                    },
+                                    {
+                                        type = "sprite-button",
+                                        style = "tool_button_red",
+                                        sprite = "utility/trash",
+                                        tooltip = { "module-inserter-config-button-clear-all" },
+                                        handler = mi_gui.handlers.main.clear_all,
+                                    },
+                                }
+                            },
+                            {
+                                type = "scroll-pane",
+                                name = "main_scroll",
+                                style = "mi_naked_scroll_pane",
+                                style_mods = { minimal_width = 525, }, ---@diagnostic disable-line: missing-fields
+                                vertical_scroll_policy = "always",
+                                children = {
+                                    {
+                                        type = "frame",
+                                        name = "default_frame",
+                                        style = "deep_frame_in_shallow_frame",
+                                        children = {
+                                            {
+                                                type = "frame",
+                                                style = "inside_shallow_frame",
+                                                style_mods = { minimal_width = TARGET_SECTION_WIDTH, horizontally_stretchable = false, }, ---@diagnostic disable-line: missing-fields
+                                                children = {
+                                                    type = "checkbox",
+                                                    name = "default_checkbox",
+                                                    caption = "Default Modules",
+                                                    state = false,
+                                                    style_mods = {
+                                                        margin = 6,
+                                                        horizontally_stretchable = true,
+                                                    },
+                                                    handler = { [defines.events.on_gui_checked_state_changed] = mi_gui.handlers.main.default_checkbox },
+                                                    tooltip = "If checked, will fill any entities not specified below with the modules here", -- TODO move text string to locale
                                                 }
-                                            }
+                                            },
+                                            mi_gui.templates.module_set("default_module_set"),
                                         },
-                                    }
+                                    },
+                                    {
+                                        type = "flow",
+                                        name = "config_rows",
+                                        direction = "vertical",
+                                        style_mods = { top_padding = 6, }, ---@diagnostic disable-line: missing-fields
+                                        children = mi_gui.templates.config_rows(pdata.active_config),
+                                    },
                                 },
-                                {
-                                    type = "flow",
-                                    direction = "vertical",
-                                    style_mods = { padding = 12, top_padding = 8, vertical_spacing = 10, minimal_height = 444 }, ---@diagnostic disable-line: missing-fields
-                                    children = {
-                                        {
-                                            type = "scroll-pane",
-                                            style = "mi_naked_scroll_pane",
-                                            name = "config_rows",
-                                            children = mi_gui.templates.config_rows(pdata.active_config)
-                                        },
-                                        mi_gui.templates.pushers.vertical,
+                                -- mi_gui.templates.pushers.vertical,
+                            },
+                        }
+                    },
+                    {
+                        type = "frame",
+                        name = "preset_frame",
+                        style = "inside_shallow_frame",
+                        direction = "vertical",
+                        children = {
+                            {
+                                type = "frame",
+                                name = "preset_header",
+                                style = "subheader_frame",
+                                children = {
+                                    {
+                                        type = "label",
+                                        style = "subheader_caption_label",
+                                        caption = { "module-inserter-storage-frame-title" }
+                                    },
+                                    mi_gui.templates.pushers.horizontal,
+                                    {
+                                        type = "sprite-button",
+                                        name = "import_preset_button",
+                                        style = "tool_button",
+                                        sprite = "mi_import_string",
+                                        tooltip = { "module-inserter-import" },
+                                        handler = mi_gui.handlers.presets.import,
+                                    },
+                                    {
+                                        type = "sprite-button",
+                                        name = "export_all_presets_button",
+                                        style = "tool_button",
+                                        sprite = "utility/export_slot",
+                                        tooltip = { "module-inserter-export-all" },
+                                        handler = mi_gui.handlers.presets.export,
+                                    },
+                                }
+                            },
+                            {
+                                type = "flow",
+                                direction = "vertical",
+                                children = {
+                                    {
+                                        type = "frame",
+                                        style = "deep_frame_in_shallow_frame",
+                                        children = {
+                                            {
+                                                type = "scroll-pane",
+                                                style = "mi_naked_scroll_pane",
+                                                name = "preset_scroll_pane",
+                                                style_mods = { vertically_stretchable = true }, ---@diagnostic disable-line: missing-fields
+                                            }
+                                        }
                                     }
                                 }
-                            }
-                        },
-                        {
-                            type = "frame",
-                            name = "preset_frame",
-                            style = "inside_shallow_frame",
-                            direction = "vertical",
-                            children = {
-                                {
-                                    type = "frame",
-                                    name = "preset_header",
-                                    style = "subheader_frame",
-                                    children = {
-                                        {
-                                            type = "label",
-                                            style = "subheader_caption_label",
-                                            caption = { "module-inserter-storage-frame-title" }
-                                        },
-                                        mi_gui.templates.pushers.horizontal,
-                                        {
-                                            type = "sprite-button",
-                                            name = "import_preset_button",
-                                            style = "tool_button",
-                                            sprite = "mi_import_string",
-                                            tooltip = { "module-inserter-import" },
-                                            handler = mi_gui.handlers.presets.import,
-                                        },
-                                        {
-                                            type = "sprite-button",
-                                            name = "export_all_presets_button",
-                                            style = "tool_button",
-                                            sprite = "utility/export_slot",
-                                            tooltip = { "module-inserter-export-all" },
-                                            handler = mi_gui.handlers.presets.export,
-                                        },
+                            },
+                            {
+                                type = "flow",
+                                direction = "horizontal",
+                                children = {
+                                    {
+                                        type = "button",
+                                        name = "add_preset_button",
+                                        caption = "Add Preset",
+                                        handler = mi_gui.handlers.presets.add
                                     }
-                                },
-                                {
-                                    type = "flow",
-                                    direction = "vertical",
-                                    children = {
-                                        {
-                                            type = "frame",
-                                            style = "deep_frame_in_shallow_frame",
-                                            children = {
-                                                {
-                                                    type = "scroll-pane",
-                                                    style = "mi_naked_scroll_pane",
-                                                    style_mods = { vertically_stretchable = true }, ---@diagnostic disable-line: missing-fields
-                                                    name = "preset_scroll_pane",
-                                                }
-                                            }
-                                        }
-                                    }
-                                },
-                                {
-                                    type = "flow",
-                                    direction = "horizontal",
-                                    children = {
-                                        {
-                                            type = "button",
-                                            name = "add_preset_button",
-                                            caption = "Add Preset",
-                                            handler = mi_gui.handlers.presets.add
-                                        }
-                                    }
-                                },
-                            }
+                                }
+                            },
                         }
                     }
                 }
             }
-        },
+        }
     })
     pdata.gui.main = {
         window = refs.main_window,
         pin_button = refs.pin_button,
         destroy_tool_button = refs.destroy_tool_button,
+        scroll = refs.main_scroll,
         config_rows = refs.config_rows,
         default_checkbox = refs.default_checkbox,
         default_module_set = refs.default_module_set,
@@ -672,8 +645,7 @@ end
 
 --- @param gui_config_rows LuaGuiElement
 --- @param config_tmp PresetConfig
---- @param do_scroll boolean?
-function mi_gui.update_rows(gui_config_rows, config_tmp, do_scroll)
+function mi_gui.update_rows(gui_config_rows, config_tmp)
     -- Add or destroy rows as needed
     while #gui_config_rows.children < #config_tmp.rows do
         gui.add(gui_config_rows, { mi_gui.templates.config_row(#gui_config_rows.children + 1) })
@@ -684,10 +656,6 @@ function mi_gui.update_rows(gui_config_rows, config_tmp, do_scroll)
 
     for index, row_config in ipairs(config_tmp.rows) do
         mi_gui.update_row(gui_config_rows, row_config, index)
-    end
-
-    if do_scroll then
-        gui_config_rows.scroll_to_bottom()
     end
 end
 
@@ -775,18 +743,12 @@ function mi_gui.update_row(gui_config_rows, row_config, row_index)
 
     if not util.target_config_has_entries(row_config.target) then
         -- No assembler, delete the module section
-        if row.module_set then
-            for _, elem in pairs(row.module_set.children) do
-                elem.destroy()
-            end
-            row.module_set.destroy()
+        for _, elem in pairs(row.module_set.children) do
+            elem.destroy()
         end
     else
         local slots = util.get_target_config_max_slots(row_config.target)
-        -- Create and update the module section
-        if not row.module_set or not row.module_set.valid then
-            gui.add(row, mi_gui.templates.module_set())
-        end
+        -- Update the module section
         mi_gui.update_module_set(row_index, row.module_set, slots, row_config.module_configs)
     end
 end
@@ -1011,7 +973,10 @@ mi_gui.handlers = {
             -- TODO ensure the module set is valid for the entity (probably don't change the entity if there's invalid modules, and show a message)
             util.normalize_preset_config(active_config)
 
-            mi_gui.update_rows(e.pdata.gui.main.config_rows, active_config, do_scroll)
+            mi_gui.update_rows(e.pdata.gui.main.config_rows, active_config)
+            if do_scroll then
+                e.pdata.gui.main.scroll.scroll_to_bottom()
+            end
         end,
 
         --- @param e MiEventInfo
