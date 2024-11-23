@@ -356,9 +356,7 @@ function mi_gui.create(player_index)
                         style = "frame_action_button",
                         tooltip = { "module-inserter-ex-keep-open" },
                         toggled = pdata.pinned,
-                        sprite = pdata.pinned and "miex_pin_black" or "miex_pin_white",
-                        hovered_sprite = "miex_pin_black",
-                        clicked_sprite = "miex_pin_black",
+                        sprite = "flib_pin_white",
                         handler = mi_gui.handlers.main.pin,
                     },
                     {
@@ -493,7 +491,7 @@ function mi_gui.create(player_index)
                                         type = "sprite-button",
                                         name = "export_all_presets_button",
                                         style = "tool_button",
-                                        sprite = "utility/export",
+                                        sprite = "utility/export_slot",
                                         tooltip = { "module-inserter-ex-export-all" },
                                         handler = mi_gui.handlers.presets.export,
                                     },
@@ -734,11 +732,7 @@ function mi_gui.update_presets(pdata)
             preset_flow.rename_confirm_button.visible = false
             preset_button.visible = true
             preset_flow.rename_button.visible = true
-            if this_preset == pdata.active_config then
-                preset_button.style = "miex_preset_button_selected"
-            else
-                preset_button.style = "miex_preset_button"
-            end
+            preset_button.toggled = (this_preset == pdata.active_config)
         end
         -- Don't allow deleting the final preset
         preset_flow.delete_button.enabled = (#pdata.saved_presets > 1)
@@ -840,19 +834,14 @@ mi_gui.handlers = {
         pin = function(e)
             local pdata = e.pdata
             local pin = pdata.gui.main.pin_button
+            pdata.pinned = not pdata.pinned
             pin.toggled = pdata.pinned
             if pdata.pinned then
-                pin.sprite = "miex_pin_white"
-                pin.style = "frame_action_button"
-                pdata.pinned = false
-                pdata.gui.main.window.force_auto_center()
-                e.player.opened = pdata.gui.main.window
-            else
-                pin.sprite = "miex_pin_black"
-                pin.style = "flib_selected_frame_action_button"
-                pdata.pinned = true
                 pdata.gui.main.window.auto_center = false
                 e.player.opened = nil
+            else
+                pdata.gui.main.window.force_auto_center()
+                e.player.opened = pdata.gui.main.window
             end
         end,
         --- @param e MiEventInfo
