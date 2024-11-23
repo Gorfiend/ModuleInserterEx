@@ -819,7 +819,8 @@ mi_gui.handlers = {
         end,
         --- @param e MiEventInfo
         clear_all = function(e)
-            e.pdata.active_config = types.make_preset_config(e.pdata.active_config.name)
+            e.pdata.active_config.default = types.make_module_config_set()
+            e.pdata.active_config.rows = { types.make_row_config() }
             mi_gui.update_contents(e.pdata)
         end,
         --- @param e MiEventInfo
