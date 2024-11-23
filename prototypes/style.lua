@@ -20,7 +20,16 @@ styles["mi_shortcut_bar_button_green"] = {
 styles["mi_preset_button"] = {
     type = "button_style",
     parent = "button",
-    width = 150,
+    width = 200,
+}
+
+styles["mi_table_style"] = {
+    type = "table_style",
+    parent = "table",
+    margin = 5,
+    padding = 0,
+    horizontal_spacing = 0,
+    vertical_spacing = 0,
 }
 
 local button = styles.button
@@ -83,5 +92,5 @@ data:extend{
 styles.mi_naked_scroll_pane = {
     type = "scroll_pane_style",
     extra_padding_when_activated = 0,
-    padding = 4,
+    padding = 0,
 }

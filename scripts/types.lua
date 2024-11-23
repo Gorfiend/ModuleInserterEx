@@ -36,7 +36,7 @@
 --- @field default_module_set LuaGuiElement
 
 --- @class (exact) PlayerGuiPresets
---- @field scroll_pane LuaGuiElement
+--- @field preset_pane LuaGuiElement
 
 --- @class (exact) PlayerGuiRename
 --- @field textfield LuaGuiElement

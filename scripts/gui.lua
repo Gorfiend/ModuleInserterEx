@@ -8,12 +8,6 @@ local types = require("scripts.types")
 local util = require("scripts.util")
 
 local TARGET_SECTION_WIDTH = 170
-local TABLE_STYLE_MODS = {
-    margin = 5,
-    padding = 0,
-    horizontal_spacing = 0,
-    vertical_spacing = 0,
-}
 
 local mi_gui = {}
 mi_gui.templates = {
@@ -73,7 +67,7 @@ mi_gui.templates = {
             name = "module_row_table_" .. module_row_index,
             column_count = 8,
             tags = module_row_tags,
-            style_mods = TABLE_STYLE_MODS,
+            style = "slot_table",
             children = {},
         }
         for m = 1, slots do
@@ -82,7 +76,7 @@ mi_gui.templates = {
         local row_frame = {
             type = "frame",
             name = "module_row_frame_" .. module_row_index,
-            style = "inside_shallow_frame",
+            style = "slot_button_deep_frame",
             tags = module_row_tags,
             children = {
                 module_table
@@ -108,10 +102,9 @@ mi_gui.templates = {
     target_section = function(row_index)
         return {
             type = "frame",
-            style = "inside_shallow_frame",
             name = "target_frame",
+            style = "slot_button_deep_frame",
             style_mods = {
-                minimal_width = TARGET_SECTION_WIDTH,
                 horizontally_stretchable = false,
             },
             --- @type TargetFrameTags
@@ -123,7 +116,7 @@ mi_gui.templates = {
                     type = "table",
                     column_count = 4,
                     name = "target_section",
-                    style_mods = TABLE_STYLE_MODS,
+                    style = "filter_slot_table",
                     --- @type TargetFrameTags
                     tags = {
                         row_index = row_index,
@@ -142,22 +135,13 @@ mi_gui.templates = {
         return {
             type = "frame",
             name = index,
-            style = "deep_frame_in_shallow_frame",
+            style = "flib_shallow_frame_in_shallow_frame",
             children = {
                 mi_gui.templates.target_section(index),
+                { type = "empty-widget", style_mods = { width = 6 } },
                 mi_gui.templates.module_set("module_set"),
             }
         }
-    end,
-
-    --- @param config_tmp PresetConfig
-    --- @return flib.GuiElemDef
-    config_rows = function(config_tmp)
-        local config_rows = {}
-        for index, _ in ipairs(config_tmp.rows) do
-            config_rows[index] = mi_gui.templates.config_row(index)
-        end
-        return config_rows
     end,
 
     --- @param index int preset index for this row
@@ -444,6 +428,26 @@ function mi_gui.create(player_index)
                                 }
                             },
                             {
+                                type = "frame",
+                                style = "repeated_subheader_frame",
+                                children = {
+                                    {
+                                        type = "label",
+                                        style_mods = { minimal_width = TARGET_SECTION_WIDTH, horizontal_align = "center", }, ---@diagnostic disable-line: missing-fields
+                                        -- TODO translate stuff
+                                        caption = { "", "Target entities", " [img=info]" },
+                                        tooltip = "Entities to place modules in\nEach row defines a mapping of entities to a module specification used to determine what modules to fill them with",
+                                    },
+                                    mi_gui.templates.pushers.horizontal,
+                                    {
+                                        type = "label",
+                                        caption = { "", "Module Specification", " [img=info]" },
+                                        tooltip = "Modules to insert\nDefine what modules to insert into the associated entities (on the left)\nIf an entity has fewer module slots, it will use the first modules up to it's module slot count and ignore the rest\nCan define alternate sets of modules for the same set of entities, in which case if the first set can't be used (e.g. it includes productivity modules, but the current recipe doesn't allow productivity), it will try the next set",
+                                    },
+                                    mi_gui.templates.pushers.horizontal,
+                                }
+                            },
+                            {
                                 type = "scroll-pane",
                                 name = "main_scroll",
                                 style = "mi_naked_scroll_pane",
@@ -452,38 +456,42 @@ function mi_gui.create(player_index)
                                 children = {
                                     {
                                         type = "frame",
-                                        name = "default_frame",
-                                        style = "deep_frame_in_shallow_frame",
+                                        style = "inside_shallow_frame_with_padding",
+                                        direction = "vertical",
                                         children = {
                                             {
                                                 type = "frame",
-                                                style = "inside_shallow_frame",
-                                                style_mods = { minimal_width = TARGET_SECTION_WIDTH, horizontally_stretchable = false, }, ---@diagnostic disable-line: missing-fields
+                                                name = "default_frame",
+                                                style = "flib_shallow_frame_in_shallow_frame",
                                                 children = {
-                                                    type = "checkbox",
-                                                    name = "default_checkbox",
-                                                    caption = "Default Modules",
-                                                    state = false,
-                                                    style_mods = {
-                                                        margin = 6,
-                                                        horizontally_stretchable = true,
+                                                    {
+                                                        type = "flow",
+                                                        style_mods = { minimal_width = TARGET_SECTION_WIDTH, horizontally_stretchable = false, }, ---@diagnostic disable-line: missing-fields
+                                                        children = {
+                                                            type = "checkbox",
+                                                            name = "default_checkbox",
+                                                            caption = "Default Modules",
+                                                            state = false,
+                                                            style_mods = {
+                                                                margin = 6,
+                                                                horizontally_stretchable = true,
+                                                            },
+                                                            handler = { [defines.events.on_gui_checked_state_changed] = mi_gui.handlers.main.default_checkbox },
+                                                            tooltip = "If checked, will fill any entities not specified below with the modules here", -- TODO move text string to locale
+                                                        }
                                                     },
-                                                    handler = { [defines.events.on_gui_checked_state_changed] = mi_gui.handlers.main.default_checkbox },
-                                                    tooltip = "If checked, will fill any entities not specified below with the modules here", -- TODO move text string to locale
-                                                }
+                                                    mi_gui.templates.module_set("default_module_set"),
+                                                },
                                             },
-                                            mi_gui.templates.module_set("default_module_set"),
+                                            {
+                                                type = "flow",
+                                                name = "config_rows",
+                                                direction = "vertical",
+                                                style_mods = { top_padding = 12, vertical_spacing = 6, }, ---@diagnostic disable-line: missing-fields
+                                            },
                                         },
                                     },
-                                    {
-                                        type = "flow",
-                                        name = "config_rows",
-                                        direction = "vertical",
-                                        style_mods = { top_padding = 6, }, ---@diagnostic disable-line: missing-fields
-                                        children = mi_gui.templates.config_rows(pdata.active_config),
-                                    },
-                                },
-                                -- mi_gui.templates.pushers.vertical,
+                                }
                             },
                         }
                     },
@@ -520,37 +528,27 @@ function mi_gui.create(player_index)
                                         tooltip = { "module-inserter-export-all" },
                                         handler = mi_gui.handlers.presets.export,
                                     },
-                                }
+                                },
                             },
                             {
                                 type = "flow",
                                 direction = "vertical",
                                 children = {
                                     {
-                                        type = "frame",
-                                        style = "deep_frame_in_shallow_frame",
-                                        children = {
-                                            {
-                                                type = "scroll-pane",
-                                                style = "mi_naked_scroll_pane",
-                                                name = "preset_scroll_pane",
-                                                style_mods = { vertically_stretchable = true }, ---@diagnostic disable-line: missing-fields
-                                            }
-                                        }
-                                    }
-                                }
+                                        type = "scroll-pane",
+                                        style = "mi_naked_scroll_pane",
+                                        name = "preset_pane",
+                                        style_mods = { vertically_stretchable = true }, ---@diagnostic disable-line: missing-fields
+                                    },
+                                },
                             },
                             {
-                                type = "flow",
-                                direction = "horizontal",
-                                children = {
-                                    {
-                                        type = "button",
-                                        name = "add_preset_button",
-                                        caption = "Add Preset",
-                                        handler = mi_gui.handlers.presets.add
-                                    }
-                                }
+                                type = "button",
+                                name = "add_preset_button",
+                                caption = "Add Preset", -- TODO translate
+                                tooltip = "Create a new preset.\nHold Shift to copy the current preset",
+                                style_mods = { horizontally_stretchable = true, }, ---@diagnostic disable-line: missing-fields
+                                handler = mi_gui.handlers.presets.add
                             },
                         }
                     }
@@ -568,7 +566,7 @@ function mi_gui.create(player_index)
         default_module_set = refs.default_module_set,
     }
     pdata.gui.presets = {
-        scroll_pane = refs.preset_scroll_pane,
+        preset_pane = refs.preset_pane,
     }
 
     refs.main_window.force_auto_center()
@@ -773,7 +771,7 @@ end
 --- @param data PresetConfig? data to restore
 --- @return boolean
 function mi_gui.add_preset(pdata, select, data)
-    local new_preset = data or types.make_preset_config(name or util.generate_random_name())
+    local new_preset = data or types.make_preset_config(util.generate_random_name())
     table.insert(pdata.saved_presets, new_preset)
     if select then
         pdata.active_config = new_preset
@@ -785,14 +783,14 @@ end
 
 --- @param pdata PlayerConfig
 function mi_gui.update_presets(pdata)
-    local preset_scroll = pdata.gui.presets.scroll_pane
-    while #preset_scroll.children > #pdata.saved_presets do
-        preset_scroll.children[#preset_scroll.children].destroy()
+    local preset_pane = pdata.gui.presets.preset_pane
+    while #preset_pane.children > #pdata.saved_presets do
+        preset_pane.children[#preset_pane.children].destroy()
     end
-    while #preset_scroll.children < #pdata.saved_presets do
-        gui.add(preset_scroll, { mi_gui.templates.preset_row(#preset_scroll.children + 1) })
+    while #preset_pane.children < #pdata.saved_presets do
+        gui.add(preset_pane, { mi_gui.templates.preset_row(#preset_pane.children + 1) })
     end
-    for i, preset_flow in ipairs(preset_scroll.children) do
+    for i, preset_flow in ipairs(preset_pane.children) do
         local preset_button = preset_flow.select_button
         preset_button.caption = pdata.saved_presets[i].name
         if pdata.saved_presets[i] == pdata.active_config then
@@ -1044,8 +1042,12 @@ mi_gui.handlers = {
 
         --- @param e MiEventInfo
         add = function(e)
-            mi_gui.add_preset(e.pdata, true)
-        end,
+            if e.event.shift then
+                mi_gui.add_preset(e.pdata, true, table.deep_copy(e.pdata.active_config))
+            else
+                mi_gui.add_preset(e.pdata, true)
+            end
+    end,
 
         --- @param e MiEventInfo
         import = function(e)
