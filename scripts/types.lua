@@ -23,7 +23,6 @@
 --- @class (exact) PlayerGui
 --- @field main PlayerGuiMain
 --- @field presets PlayerGuiPresets
---- @field rename PlayerGuiRename?
 --- @field import PlayerGuiImport?
 
 --- @class (exact) PlayerGuiMain
@@ -37,10 +36,6 @@
 
 --- @class (exact) PlayerGuiPresets
 --- @field preset_pane LuaGuiElement
-
---- @class (exact) PlayerGuiRename
---- @field textfield LuaGuiElement
---- @field window LuaGuiElement
 
 --- @class (exact) PlayerGuiImport
 --- @field textbox LuaGuiElement

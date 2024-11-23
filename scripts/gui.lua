@@ -164,6 +164,30 @@ mi_gui.templates = {
                 },
                 {
                     type = "sprite-button",
+                    name = "rename_button",
+                    style = "tool_button",
+                    sprite = "utility/rename_icon",
+                    handler = mi_gui.handlers.preset.rename,
+                },
+                {
+                    type = "textfield",
+                    name = "rename_textfield",
+                    icon_selector = true,
+                    tooltip = "Rename this preset",
+                    visible = false,
+                    handler = { [defines.events.on_gui_confirmed] = mi_gui.handlers.preset.rename,}
+                },
+                {
+                    type = "sprite-button",
+                    name = "rename_confirm_button",
+                    style = "item_and_count_select_confirm",
+                    sprite = "utility/enter",
+                    tooltip = "Confirm rename of this preset",
+                    visible = false,
+                    handler = mi_gui.handlers.preset.rename,
+                },
+                {
+                    type = "sprite-button",
                     name = "export_button",
                     style = "tool_button",
                     sprite = "utility/export_slot",
@@ -177,14 +201,6 @@ mi_gui.templates = {
                     sprite = "utility/trash",
                     tooltip = "Delete this preset", -- TODO Translate
                     handler = mi_gui.handlers.preset.delete,
-                },
-                {
-                    type = "sprite-button",
-                    name = "rename_button",
-                    style = "tool_button",
-                    sprite = "utility/rename_icon",
-                    tooltip = "Rename this preset", -- TODO Translate
-                    handler = mi_gui.handlers.preset.rename,
                 },
             }
         }
@@ -244,65 +260,6 @@ mi_gui.templates = {
                         }
                     }
                 }
-            }
-        }
-    end,
-    --- @param title string Window title
-    --- @param name string? current name
-    --- @return flib.GuiElemDef
-    enter_name_window = function(title, name)
-        --- @type flib.GuiElemDef
-        return {
-            type = "frame",
-            direction = "vertical",
-            name = "window",
-            children = {
-                {
-                    type = "flow",
-                    name = "titlebar_flow",
-                    drag_target = "window",
-                    children = {
-                        {
-                            type = "label",
-                            style = "frame_title",
-                            caption = title,
-                            elem_mods = { ignored_by_interaction = true } ---@diagnostic disable-line: missing-fields
-                        },
-                        {
-                            type = "empty-widget",
-                            style = "flib_titlebar_drag_handle",
-                            elem_mods = { ignored_by_interaction = true } ---@diagnostic disable-line: missing-fields
-                        },
-                        {
-                            type = "sprite-button",
-                            style = "frame_action_button",
-                            sprite = "utility/close",
-                            hovered_sprite = "utility/close_black",
-                            clicked_sprite = "utility/close_black",
-                            handler = mi_gui.handlers.rename.close_button,
-                        },
-                    }
-                },
-                {
-                    type = "flow",
-                    direction = "horizontal",
-                    children = {
-                        {
-                            type = "textfield",
-                            name = "rename_textfield",
-                            text = name,
-                            icon_selector = true,
-                            handler = { [defines.events.on_gui_confirmed] = mi_gui.handlers.rename.confirm,}
-                        },
-                        {
-                            type = "sprite-button",
-                            style = "item_and_count_select_confirm",
-                            sprite = "utility/enter",
-                            tooltip = "Confirm",
-                            handler = mi_gui.handlers.rename.confirm,
-                        }
-                    }
-                },
             }
         }
     end,
@@ -599,48 +556,6 @@ function mi_gui.create_import_window(pdata, player, bp_string)
     textbox.focus()
 end
 
---- @param pdata PlayerConfig
---- @param player LuaPlayer
-function mi_gui.create_name_window(pdata, player)
-    local current_gui = pdata.gui.rename
-    if current_gui and current_gui.window and current_gui.window.valid then
-        current_gui.window.destroy()
-        pdata.gui.rename = nil
-    end
-    local refs = gui.add(player.gui.screen, mi_gui.templates.enter_name_window("Enter Name", pdata.naming.name))
-    pdata.gui.rename = {
-        window = refs.window,
-        textfield = refs.rename_textfield,
-    }
-
-    refs.window.force_auto_center() -- TODO place it at the button used to open it
-    local textfield = refs.rename_textfield
-    textfield.select_all()
-    textfield.focus()
-end
-
---- @param pdata PlayerConfig
---- @param player LuaPlayer
---- @param save boolean Whether to save the new name
-function mi_gui.close_name_window(pdata, player, save)
-    local current_gui = pdata.gui.rename
-    if current_gui and current_gui.window and current_gui.window.valid then
-        if save and pdata.naming then
-            local new_name = current_gui.textfield.text
-            if new_name == "" then
-                player.print({ "module-inserter-storage-name-not-set" })
-                return
-            end
-            pdata.naming.name = new_name
-            pdata.naming = nil
-            mi_gui.update_presets(pdata)
-        end
-        current_gui.window.destroy()
-        pdata.gui.rename = nil
-    end
-end
-
-
 --- @param gui_config_rows LuaGuiElement
 --- @param config_tmp PresetConfig
 function mi_gui.update_rows(gui_config_rows, config_tmp)
@@ -656,7 +571,6 @@ function mi_gui.update_rows(gui_config_rows, config_tmp)
         mi_gui.update_row(gui_config_rows, row_config, index)
     end
 end
-
 
 --- @param module_row LuaGuiElement
 --- @param slots int
@@ -792,11 +706,23 @@ function mi_gui.update_presets(pdata)
     end
     for i, preset_flow in ipairs(preset_pane.children) do
         local preset_button = preset_flow.select_button
-        preset_button.caption = pdata.saved_presets[i].name
-        if pdata.saved_presets[i] == pdata.active_config then
-            preset_button.style = "mi_preset_button_selected"
+        local this_preset = pdata.saved_presets[i]
+        preset_button.caption = this_preset.name
+        if pdata.naming == this_preset then
+            preset_flow.rename_textfield.visible = true
+            preset_flow.rename_confirm_button.visible = true
+            preset_button.visible = false
+            preset_flow.rename_button.visible = false
         else
-            preset_button.style = "mi_preset_button"
+            preset_flow.rename_textfield.visible = false
+            preset_flow.rename_confirm_button.visible = false
+            preset_button.visible = true
+            preset_flow.rename_button.visible = true
+            if this_preset == pdata.active_config then
+                preset_button.style = "mi_preset_button_selected"
+            else
+                preset_button.style = "mi_preset_button"
+            end
         end
         -- Don't allow deleting the final preset
         preset_flow.delete_button.enabled = (#pdata.saved_presets > 1)
@@ -850,6 +776,7 @@ function mi_gui.close(e)
     end
     pdata.gui_open = false
     pdata.temp_config = nil
+    pdata.naming = nil
     if e.player.opened == window then
         pdata.closing = true
         e.player.opened = nil
@@ -1110,10 +1037,30 @@ mi_gui.handlers = {
         end,
         --- @param e MiEventInfo
         rename = function(e)
+            --- @type LuaGuiElement
+            local parent = e.event.element.parent
+            if not parent then return end
+            --- @type LuaGuiElement
+            local textfield = parent.rename_textfield
             --- @type PresetRowTags
-            local tags = e.event.element.parent.tags
-            e.pdata.naming = e.pdata.saved_presets[tags.preset_index]
-            mi_gui.create_name_window(e.pdata, e.player)
+            local tags = parent.tags
+            local preset = e.pdata.saved_presets[tags.preset_index]
+            if e.pdata.naming == preset then
+                -- Confirm the rename
+                local text = textfield.text
+                if text == "" then
+                    e.player.print({ "module-inserter-storage-name-not-set" })
+                    return
+                end
+                e.pdata.naming.name = textfield.text
+                e.pdata.naming = nil
+            else
+                e.pdata.naming = preset
+                textfield.text = preset.name
+            end
+            mi_gui.update_presets(e.pdata)
+            textfield.select_all()
+            textfield.focus()
         end,
     },
     import = {
@@ -1139,16 +1086,6 @@ mi_gui.handlers = {
             window.destroy()
             e.pdata.gui.import = nil
         end
-    },
-    rename = {
-        --- @param e MiEventInfo
-        close_button = function (e)
-            mi_gui.close_name_window(e.pdata, e.player, false)
-        end,
-        --- @param e MiEventInfo
-        confirm = function (e)
-            mi_gui.close_name_window(e.pdata, e.player, true)
-        end,
     },
 }
 
