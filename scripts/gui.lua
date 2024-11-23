@@ -8,6 +8,7 @@ local types = require("scripts.types")
 local util = require("scripts.util")
 
 local TARGET_SECTION_WIDTH = 170
+local PRESET_BUTTON_FIELD_WIDTH = 200
 
 local mi_gui = {}
 mi_gui.templates = {
@@ -177,7 +178,7 @@ mi_gui.templates = {
                 {
                     type = "button",
                     name = "select_button",
-                    style = "mi_preset_button",
+                    style_mods = { width = PRESET_BUTTON_FIELD_WIDTH },
                     handler = mi_gui.handlers.preset.load,
                 },
                 {
@@ -193,6 +194,7 @@ mi_gui.templates = {
                     icon_selector = true,
                     tooltip = "Rename this preset",
                     visible = false,
+                    style_mods = { width = PRESET_BUTTON_FIELD_WIDTH },
                     handler = { [defines.events.on_gui_confirmed] = mi_gui.handlers.preset.rename,}
                 },
                 {
@@ -350,12 +352,13 @@ function mi_gui.create(player_index)
                     },
                     {
                         type = "sprite-button",
+                        name = "pin_button",
                         style = "frame_action_button",
                         tooltip = { "module-inserter-ex-keep-open" },
-                        sprite = pdata.pinned and "mi_pin_black" or "mi_pin_white",
-                        hovered_sprite = "mi_pin_black",
-                        clicked_sprite = "mi_pin_black",
-                        name = "pin_button",
+                        toggled = pdata.pinned,
+                        sprite = pdata.pinned and "miex_pin_black" or "miex_pin_white",
+                        hovered_sprite = "miex_pin_black",
+                        clicked_sprite = "miex_pin_black",
                         handler = mi_gui.handlers.main.pin,
                     },
                     {
@@ -416,7 +419,7 @@ function mi_gui.create(player_index)
                             {
                                 type = "scroll-pane",
                                 name = "main_scroll",
-                                style = "mi_naked_scroll_pane",
+                                style = "flib_naked_scroll_pane_no_padding",
                                 style_mods = { minimal_width = 610, }, ---@diagnostic disable-line: missing-fields
                                 vertical_scroll_policy = "always",
                                 children = {
@@ -482,7 +485,7 @@ function mi_gui.create(player_index)
                                         type = "sprite-button",
                                         name = "import_preset_button",
                                         style = "tool_button",
-                                        sprite = "mi_import_string",
+                                        sprite = "utility/import",
                                         tooltip = { "module-inserter-ex-import" },
                                         handler = mi_gui.handlers.presets.import,
                                     },
@@ -490,7 +493,7 @@ function mi_gui.create(player_index)
                                         type = "sprite-button",
                                         name = "export_all_presets_button",
                                         style = "tool_button",
-                                        sprite = "utility/export_slot",
+                                        sprite = "utility/export",
                                         tooltip = { "module-inserter-ex-export-all" },
                                         handler = mi_gui.handlers.presets.export,
                                     },
@@ -502,7 +505,7 @@ function mi_gui.create(player_index)
                                 children = {
                                     {
                                         type = "scroll-pane",
-                                        style = "mi_naked_scroll_pane",
+                                        style = "flib_naked_scroll_pane_no_padding",
                                         name = "preset_pane",
                                         style_mods = { vertically_stretchable = true }, ---@diagnostic disable-line: missing-fields
                                     },
@@ -732,9 +735,9 @@ function mi_gui.update_presets(pdata)
             preset_button.visible = true
             preset_flow.rename_button.visible = true
             if this_preset == pdata.active_config then
-                preset_button.style = "mi_preset_button_selected"
+                preset_button.style = "miex_preset_button_selected"
             else
-                preset_button.style = "mi_preset_button"
+                preset_button.style = "miex_preset_button"
             end
         end
         -- Don't allow deleting the final preset
@@ -837,14 +840,15 @@ mi_gui.handlers = {
         pin = function(e)
             local pdata = e.pdata
             local pin = pdata.gui.main.pin_button
+            pin.toggled = pdata.pinned
             if pdata.pinned then
-                pin.sprite = "mi_pin_white"
+                pin.sprite = "miex_pin_white"
                 pin.style = "frame_action_button"
                 pdata.pinned = false
                 pdata.gui.main.window.force_auto_center()
                 e.player.opened = pdata.gui.main.window
             else
-                pin.sprite = "mi_pin_black"
+                pin.sprite = "miex_pin_black"
                 pin.style = "flib_selected_frame_action_button"
                 pdata.pinned = true
                 pdata.gui.main.window.auto_center = false
