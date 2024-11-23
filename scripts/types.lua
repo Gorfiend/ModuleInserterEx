@@ -7,7 +7,6 @@
 
 --- @class (exact) PlayerConfig
 --- @field active_config PresetConfig One of the presets in saved_presets
---- @field temp_config PresetConfig? Temporarily save a config so you can revert changes
 --- @field saved_presets SavedPresets
 --- @field gui PlayerGui
 --- @field gui_open boolean

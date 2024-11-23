@@ -256,9 +256,6 @@ local function remove_invalid_items()
     end
     for _, pdata in pairs(storage._pdata) do
         _clean(pdata.active_config)
-        if pdata.temp_config then
-            _clean(pdata.temp_config)
-        end
         for _, preset in pairs(pdata.saved_presets) do
             _clean(preset)
         end

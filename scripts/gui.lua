@@ -385,15 +385,6 @@ function mi_gui.create(player_index)
                                     { type = "label", style = "subheader_caption_label", caption = { "module-inserter-config-frame-title" } },
                                     mi_gui.templates.pushers.horizontal,
                                     {
-                                        -- TODO change to reset button
-                                        type = "sprite-button",
-                                        style = "tool_button_green",
-                                        style_mods = { padding = 0 }, ---@diagnostic disable-line: missing-fields
-                                        handler = mi_gui.handlers.main.apply_changes,
-                                        sprite = "utility/check_mark_white",
-                                        tooltip = { "module-inserter-config-button-apply" }
-                                    },
-                                    {
                                         type = "sprite-button",
                                         style = "tool_button_red",
                                         sprite = "utility/trash",
@@ -797,7 +788,6 @@ function mi_gui.close(e)
         window.visible = false
     end
     pdata.gui_open = false
-    pdata.temp_config = nil
     pdata.naming = nil
     if e.player.opened == window then
         pdata.closing = true
@@ -822,13 +812,6 @@ mi_gui.handlers = {
         toggle = mi_gui.toggle
     },
     main = {
-        --- @param e MiEventInfo
-        revert_changes = function(e, keep_open)
-            local temp = e.pdata.temp_config
-            if temp then
-                e.pdata.active_config = table.deep_copy(temp)
-            end
-        end,
         --- @param e MiEventInfo
         default_checkbox = function(e)
             e.pdata.active_config.use_default = e.pdata.gui.main.default_checkbox.state
@@ -1048,7 +1031,6 @@ mi_gui.handlers = {
             pdata.active_config = preset
             -- Ensure it is normalized
             util.normalize_preset_config(pdata.active_config)
-            pdata.temp_config = table.deep_copy(pdata.active_config)
 
             mi_gui.update_contents(pdata)
             mi_gui.update_presets(pdata)
