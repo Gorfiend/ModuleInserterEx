@@ -230,20 +230,20 @@ function util.normalize_module_set(slots, module_set)
     local index = 1
     while index <= #module_set.configs do
         local module_config = module_set.configs[index]
-        local have_entries = util.module_config_has_entries(module_config)
-        if not have_entries then
-            table.remove(module_set.configs, index)
-        else
+        -- local have_entries = util.module_config_has_entries(module_config)
+        -- if not have_entries then
+        --     table.remove(module_set.configs, index)
+        -- else
             -- Clear slots that are not used anymore
             for slot_index = slots + 1, storage.max_slot_count do
                 module_config.module_list[slot_index] = nil
             end
             index = index + 1
-        end
+        -- end
     end
 
-    -- Add a single empty config to the end
-    table.insert(module_set.configs, types.make_module_config())
+    -- -- Add a single empty config to the end
+    -- table.insert(module_set.configs, types.make_module_config())
 end
 
 --- Resize the config set, removing empty slots

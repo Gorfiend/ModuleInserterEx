@@ -79,7 +79,25 @@ mi_gui.templates = {
             style = "slot_button_deep_frame",
             tags = module_row_tags,
             children = {
-                module_table
+                module_table,
+                {
+                    type = "sprite-button",
+                    name = "delete_module_row_button",
+                    tooltip = "Delete this module set", -- TODO locale
+                    sprite = "utility/trash",
+                    style = "tool_button_red",
+                    style_mods = { margin = 6, },
+                    handler = mi_gui.handlers.main.delete_module_row,
+                },
+                {
+                    type = "sprite-button",
+                    name = "add_module_row_button",
+                    tooltip = "Add an alternative module set\nThis can be used to provide a fallback set of modules to use, in case the first set is invalid (e.g. due to it containing productivity modules, and the current recipe doesn't allow productivity)\nWhen inserting, sets will be tried from top to bottom, and the first valid one will be used", -- TODO locale
+                    sprite = "utility/add",
+                    style = "tool_button",
+                    style_mods = { margin = 6, },
+                    handler = mi_gui.handlers.main.add_module_row,
+                },
             },
         }
     return row_frame
@@ -399,7 +417,7 @@ function mi_gui.create(player_index)
                                     {
                                         type = "label",
                                         caption = { "", "Module Specification", " [img=info]" },
-                                        tooltip = "Modules to insert\nDefine what modules to insert into the associated entities (on the left)\nIf an entity has fewer module slots, it will use the first modules up to it's module slot count and ignore the rest\nCan define alternate sets of modules for the same set of entities, in which case if the first set can't be used (e.g. it includes productivity modules, but the current recipe doesn't allow productivity), it will try the next set",
+                                        tooltip = "Modules to insert\nDefine what modules to insert into the associated entities (on the left)\nIf an entity has fewer module slots, it will use the first modules up to it's module slot count and ignore the rest\nCan also define alternate module sets, in case the first is not always applicable (e.g. has productivity modules)",
                                     },
                                     mi_gui.templates.pushers.horizontal,
                                 }
@@ -408,7 +426,7 @@ function mi_gui.create(player_index)
                                 type = "scroll-pane",
                                 name = "main_scroll",
                                 style = "mi_naked_scroll_pane",
-                                style_mods = { minimal_width = 525, }, ---@diagnostic disable-line: missing-fields
+                                style_mods = { minimal_width = 610, }, ---@diagnostic disable-line: missing-fields
                                 vertical_scroll_policy = "always",
                                 children = {
                                     {
@@ -572,15 +590,19 @@ function mi_gui.update_rows(gui_config_rows, config_tmp)
     end
 end
 
---- @param module_row LuaGuiElement
+--- @param gui_module_row LuaGuiElement
 --- @param slots int
---- @param module_config ModuleConfig
-function mi_gui.update_modules(module_row, slots, module_config)
-    local button_table = module_row.children[1]
+--- @param config_set ModuleConfigSet
+--- @param index int index of this module row in the set
+function mi_gui.update_modules(gui_module_row, slots, config_set, index)
+    local module_config = config_set.configs[index]
+    gui_module_row.add_module_row_button.visible = (index == #config_set.configs)
+    gui_module_row.delete_module_row_button.enabled = #config_set.configs > 1
+    local button_table = gui_module_row.children[1]
     slots = slots or 0
     local module_list = module_config.module_list or {}
     --- @type ModuleRowTags
-    local module_row_tags = module_row.tags
+    local module_row_tags = gui_module_row.tags
 
     -- Add or destroy buttons as needed
     while #button_table.children < slots do
@@ -609,7 +631,7 @@ function mi_gui.update_module_set(row_index, module_set, slots, config_set)
             gui.add(module_set, mi_gui.templates.module_row(row_index, i, slots))
         end
         module_row = module_set.children[i]
-        mi_gui.update_modules(module_row, slots, config_row)
+        mi_gui.update_modules(module_row, slots, config_set, i)
     end
 
     while #module_set.children > #config_set.configs do
@@ -963,7 +985,33 @@ mi_gui.handlers = {
         destroy_tool = function(e)
             e.player.get_main_inventory().remove { name = "module-inserter", count = 1 }
             mi_gui.close(e)
-        end
+        end,
+        --- @param e MiEventInfo
+        add_module_row = function(e)
+            --- @type ModuleRowTags
+            local module_row_tags = e.event.element.parent.tags
+            local configs
+            if module_row_tags.row_index == 0 then
+                configs = e.pdata.active_config.default.configs
+            else
+                configs = e.pdata.active_config.rows[module_row_tags.row_index].module_configs.configs
+            end
+            configs[#configs + 1] = types.make_module_config()
+            mi_gui.update_contents(e.pdata) -- TODO can make this update only the changed module set
+        end,
+        --- @param e MiEventInfo
+        delete_module_row = function (e)
+            --- @type ModuleRowTags
+            local module_row_tags = e.event.element.parent.tags
+            local configs
+            if module_row_tags.row_index == 0 then
+                configs = e.pdata.active_config.default.configs
+            else
+                configs = e.pdata.active_config.rows[module_row_tags.row_index].module_configs.configs
+            end
+            table.remove(configs, module_row_tags.module_row_index)
+            mi_gui.update_contents(e.pdata) -- TODO can make this update only the changed module set
+        end,
     },
     presets = {
 
