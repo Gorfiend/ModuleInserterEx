@@ -22,7 +22,7 @@ mi_gui.templates = {
             handler = { [defines.events.on_gui_elem_changed] = mi_gui.handlers.main.choose_assembler },
             elem_type = "entity",
             elem_filters = { { filter = "name", name = storage.module_entities } },
-            tooltip = { "module-inserter-choose-assembler" },
+            tooltip = { "module-inserter-ex-choose-assembler" },
             --- @type TargetButtonTags
             tags = {
                 row_index = row_index,
@@ -209,7 +209,7 @@ mi_gui.templates = {
                     name = "export_button",
                     style = "tool_button",
                     sprite = "utility/export_slot",
-                    tooltip = { "module-inserter-export-single" },
+                    tooltip = { "module-inserter-ex-export-single" },
                     handler = mi_gui.handlers.preset.export,
                 },
                 {
@@ -288,8 +288,8 @@ function mi_gui.update_main_button(player)
     if not player then return end
     local button_flow = mod_gui.get_button_flow(player)
     local button = button_flow.module_inserter_config_button
-    local visible = not player.mod_settings["module_inserter_hide_button"].value
-    local style = player.mod_settings["module_inserter_button_style"].value --[[@as string]]
+    local visible = not player.mod_settings["module-inserter-ex-hide-button"].value
+    local style = player.mod_settings["module-inserter-ex-button-style"].value --[[@as string]]
     if not button or not button.valid then
         gui.add(button_flow, { {
             type = "sprite-button",
@@ -308,7 +308,7 @@ end
 function mi_gui.update_main_frame_buttons(player)
     if not player then return end
     local button = storage._pdata[player.index].gui.main.destroy_tool_button
-    button.visible = player.mod_settings["module_inserter_hide_button"].value --[[@as boolean]]
+    button.visible = player.mod_settings["module-inserter-ex-hide-button"].value --[[@as boolean]]
 end
 
 function mi_gui.create(player_index)
@@ -344,14 +344,14 @@ function mi_gui.create(player_index)
                         name = "destroy_tool_button",
                         style = "frame_action_button_red",
                         sprite = "utility/trash",
-                        tooltip = { "module-inserter-destroy" },
+                        tooltip = { "module-inserter-ex-destroy" },
                         handler = mi_gui.handlers.main.destroy_tool,
-                        visible = player.mod_settings["module_inserter_hide_button"].value --[[@as boolean]],
+                        visible = player.mod_settings["module-inserter-ex-hide-button"].value --[[@as boolean]],
                     },
                     {
                         type = "sprite-button",
                         style = "frame_action_button",
-                        tooltip = { "module-inserter-keep-open" },
+                        tooltip = { "module-inserter-ex-keep-open" },
                         sprite = pdata.pinned and "mi_pin_black" or "mi_pin_white",
                         hovered_sprite = "mi_pin_black",
                         clicked_sprite = "mi_pin_black",
@@ -382,13 +382,13 @@ function mi_gui.create(player_index)
                                 type = "frame",
                                 style = "subheader_frame",
                                 children = {
-                                    { type = "label", style = "subheader_caption_label", caption = { "module-inserter-config-frame-title" } },
+                                    { type = "label", style = "subheader_caption_label", caption = { "module-inserter-ex-config-frame-title" } },
                                     mi_gui.templates.pushers.horizontal,
                                     {
                                         type = "sprite-button",
                                         style = "tool_button_red",
                                         sprite = "utility/trash",
-                                        tooltip = { "module-inserter-config-button-clear-all" },
+                                        tooltip = { "module-inserter-ex-config-button-clear-all" },
                                         handler = mi_gui.handlers.main.clear_all,
                                     },
                                 }
@@ -475,7 +475,7 @@ function mi_gui.create(player_index)
                                     {
                                         type = "label",
                                         style = "subheader_caption_label",
-                                        caption = { "module-inserter-storage-frame-title" }
+                                        caption = { "module-inserter-ex-storage-frame-title" }
                                     },
                                     mi_gui.templates.pushers.horizontal,
                                     {
@@ -483,7 +483,7 @@ function mi_gui.create(player_index)
                                         name = "import_preset_button",
                                         style = "tool_button",
                                         sprite = "mi_import_string",
-                                        tooltip = { "module-inserter-import" },
+                                        tooltip = { "module-inserter-ex-import" },
                                         handler = mi_gui.handlers.presets.import,
                                     },
                                     {
@@ -491,7 +491,7 @@ function mi_gui.create(player_index)
                                         name = "export_all_presets_button",
                                         style = "tool_button",
                                         sprite = "utility/export_slot",
-                                        tooltip = { "module-inserter-export-all" },
+                                        tooltip = { "module-inserter-ex-export-all" },
                                         handler = mi_gui.handlers.presets.export,
                                     },
                                 },
@@ -607,7 +607,7 @@ function mi_gui.update_modules(gui_module_row, slots, config_set, index)
         local child = button_table.children[i]
         child.elem_value = module_list[i]
         -- TODO if this is the first slot, and the setting for fill from first is set, add that info to the tooltip
-        child.tooltip = module_list[i] and prototypes.item[module_list[i].name].localised_name or { "module-inserter-choose-module" }
+        child.tooltip = module_list[i] and prototypes.item[module_list[i].name].localised_name or { "module-inserter-ex-choose-module" }
     end
 end
 
@@ -648,7 +648,7 @@ function mi_gui.update_target_section(gui_target_table, target_config)
         local child = gui_target_table.children[i]
         local target = target_config.entities[i]
         child.elem_value = target
-        child.tooltip = util.get_localised_entity_name(target, { "module-inserter-choose-assembler" })
+        child.tooltip = util.get_localised_entity_name(target, { "module-inserter-ex-choose-assembler" })
     end
 end
 
@@ -951,7 +951,7 @@ mi_gui.handlers = {
             end
             module_config.module_list[slot] = util.normalize_id_quality_pair(element.elem_value --[[@as ItemIDAndQualityIDPair]])
 
-            if slot == 1 and e.player.mod_settings["module_inserter_fill_all"].value then
+            if slot == 1 and e.player.mod_settings["module-inserter-ex-fill-all"].value then
                 for i = 2, slot_count do
                     module_config.module_list[i] = module_config.module_list[slot]
                 end
@@ -967,7 +967,7 @@ mi_gui.handlers = {
         end,
         --- @param e MiEventInfo
         destroy_tool = function(e)
-            e.player.get_main_inventory().remove { name = "module-inserter", count = 1 }
+            e.player.get_main_inventory().remove { name = "module-inserter-ex", count = 1 }
             mi_gui.close(e)
         end,
         --- @param e MiEventInfo
@@ -1036,10 +1036,10 @@ mi_gui.handlers = {
             mi_gui.update_contents(pdata)
             mi_gui.update_presets(pdata)
 
-            local keep_open = not e.player.mod_settings["module_inserter_close_after_load"].value
+            local keep_open = not e.player.mod_settings["module-inserter-ex-close-after-load"].value
             if not keep_open then
                 mi_gui.close(e)
-                e.player.print({ "module-inserter-storage-loaded", pdata.active_config.name })
+                e.player.print({ "module-inserter-ex-storage-loaded", pdata.active_config.name })
             end
         end,
 
@@ -1080,7 +1080,7 @@ mi_gui.handlers = {
                 -- Confirm the rename
                 local text = textfield.text
                 if text == "" then
-                    e.player.print({ "module-inserter-storage-name-not-set" })
+                    e.player.print({ "module-inserter-ex-storage-name-not-set" })
                     return
                 end
                 e.pdata.naming.name = textfield.text

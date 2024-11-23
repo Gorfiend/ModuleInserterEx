@@ -26,7 +26,7 @@ local function make_event_info(e)
 end
 
 script.on_event(defines.events.on_mod_item_opened, function(e)
-    if e.item.name == "module-inserter" then
+    if e.item.name == "module-inserter-ex" then
         me = make_event_info(e)
         if not me.pdata.gui_open then
             mi_gui.open(me)
@@ -34,7 +34,7 @@ script.on_event(defines.events.on_mod_item_opened, function(e)
     end
 end)
 
-script.on_event("toggle-module-inserter", function(e)
+script.on_event("toggle-module-inserter-ex", function(e)
     mi_gui.toggle(make_event_info(e))
 end)
 
@@ -42,18 +42,18 @@ local function get_module_inserter(e)
     local player = game.get_player(e.player_index)
     if not player then return end
     local inv = player.get_main_inventory()
-    local mi = inv and inv.find_item_stack("module-inserter") or nil
+    local mi = inv and inv.find_item_stack("module-inserter-ex") or nil
     if mi then
         mi.swap_stack(player.cursor_stack)
     else
         player.clear_cursor()
-        player.cursor_stack.set_stack({ name = "module-inserter" })
+        player.cursor_stack.set_stack({ name = "module-inserter-ex" })
     end
 end
 
-script.on_event("get-module-inserter", get_module_inserter)
+script.on_event("get-module-inserter-ex", get_module_inserter)
 script.on_event(defines.events.on_lua_shortcut, function(e)
-    if e.prototype_name == "module-inserter" then
+    if e.prototype_name == "module-inserter-ex" then
         get_module_inserter(e)
     end
 end)
@@ -93,18 +93,18 @@ end
 local function on_player_selected_area(e)
     local status, err = pcall(function()
         local player_index = e.player_index
-        if e.item ~= "module-inserter" or not player_index then return end
+        if e.item ~= "module-inserter-ex" or not player_index then return end
         local player = game.get_player(player_index)
         if not player then return end
         local pdata = storage._pdata[player_index]
         local active_preset = pdata.active_config
         if not active_preset then
-            player.print({"module-inserter-config-not-set"})
+            player.print({"module-inserter-ex-config-not-set"})
             return
         end
         local surface = player.surface
         local delay = e.tick --[[@as uint]]
-        local max_proxies = settings.global["module_inserter_proxies_per_tick"].value
+        local max_proxies = settings.global["module-inserter-ex-proxies-per-tick"].value
         local result_messages = {}
         for i, entity in pairs(e.entities) do
 
@@ -148,7 +148,7 @@ end
 ---@param e EventData.on_player_alt_selected_area
 local function on_player_alt_selected_area(e)
     local status, err = pcall(function()
-        if not e.item == "module-inserter" then return end
+        if not e.item == "module-inserter-ex" then return end
         local player = game.players[e.player_index]
         for _, entity in pairs(e.entities) do
             util.create_request_proxy({
@@ -170,13 +170,13 @@ end
 local function on_player_reverse_selected_area(e)
     local status, err = pcall(function()
         local player_index = e.player_index
-        if e.item ~= "module-inserter" or not player_index then return end
+        if e.item ~= "module-inserter-ex" or not player_index then return end
 
         local player = game.get_player(player_index)
         if not player then return end
         local surface = player.surface
         local delay = e.tick
-        local max_proxies = settings.global["module_inserter_proxies_per_tick"].value
+        local max_proxies = settings.global["module-inserter-ex-proxies-per-tick"].value
 
         for i, entity in pairs(e.entities) do
             if entity.type == "entity-ghost" then
@@ -368,7 +368,7 @@ end)
 
 script.on_event(defines.events.on_runtime_mod_setting_changed, function(e)
     if not e.player_index then return end
-    if e.setting == "module_inserter_button_style" or e.setting == "module_inserter_hide_button" then
+    if e.setting == "module-inserter-ex-button-style" or e.setting == "module-inserter-ex-hide-button" then
         mi_gui.update_main_button(game.get_player(e.player_index))
         mi_gui.update_main_frame_buttons(game.get_player(e.player_index))
     end
@@ -377,18 +377,18 @@ end)
 script.on_event(defines.events.on_player_cursor_stack_changed, function(e)
     local player = game.get_player(e.player_index)
     if not player then return end
-    if player.mod_settings["module_inserter_hide_button"].value then return end
+    if player.mod_settings["module-inserter-ex-hide-button"].value then return end
     -- Track if they have the module inserter in hand, then when they let go remove it from their inventory
     -- Don't do this if the mod gui button to open the inserter options is disabled
-    if player.cursor_stack.valid_for_read and player.cursor_stack.name == "module-inserter" then
+    if player.cursor_stack.valid_for_read and player.cursor_stack.name == "module-inserter-ex" then
         storage._pdata[e.player_index].cursor = true
     elseif storage._pdata[e.player_index].cursor then
         storage._pdata[e.player_index].cursor = false
         local inv = player.get_main_inventory()
         if not inv then return end
-        local count = inv.get_item_count("module-inserter")
+        local count = inv.get_item_count("module-inserter-ex")
         if count > 0 then
-            inv.remove{name = "module-inserter", count = count}
+            inv.remove{name = "module-inserter-ex", count = count}
         end
     end
 end)

@@ -1,7 +1,7 @@
 data:extend {
     {
         type = 'shortcut',
-        name = 'module-inserter',
+        name = 'module-inserter-ex',
         --order = "a[yarm]",
         action = 'lua',
         style = 'green',

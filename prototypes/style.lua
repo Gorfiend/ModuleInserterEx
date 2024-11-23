@@ -1,5 +1,5 @@
 local styles = data.raw["gui-style"].default
-styles["module-inserter-small-button"] = {
+styles["module-inserter-ex-small-button"] = {
     type = "button_style",
     parent = "button",
     width = 60
