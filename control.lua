@@ -23,15 +23,6 @@ local function make_event_info(e)
     }
 end
 
-script.on_event(defines.events.on_mod_item_opened, function(e)
-    if e.item.name == "module-inserter-ex" then
-        me = make_event_info(e)
-        if not me.pdata.gui_open then
-            mi_gui.open(me)
-        end
-    end
-end)
-
 script.on_event("toggle-module-inserter-ex", function(e)
     mi_gui.toggle(make_event_info(e))
 end)
@@ -282,7 +273,6 @@ local function init_player(i)
         active_config = active_config,
         saved_presets = pdata.saved_presets or { active_config },
         gui = pdata.gui or {},
-        gui_open = false,
         pinned = false,
         cursor = false,
     }

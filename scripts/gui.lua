@@ -716,7 +716,6 @@ function mi_gui.destroy(pdata, player)
     pdata.gui.main = nil
     pdata.gui.presets = nil
     pdata.gui.import = nil
-    pdata.gui_open = false
 end
 
 --- @param e MiEventInfo
@@ -728,7 +727,6 @@ function mi_gui.open(e)
         window = e.pdata.gui.main.window
     end
     window.visible = true
-    e.pdata.gui_open = true
     if not e.pdata.pinned then
         e.player.opened = window
     end
@@ -744,7 +742,6 @@ function mi_gui.close(e)
     if window and window.valid then
         window.visible = false
     end
-    pdata.gui_open = false
     pdata.naming = nil
     if e.player.opened == window then
         pdata.closing = true
@@ -755,11 +752,10 @@ end
 
 --- @param e MiEventInfo
 function mi_gui.toggle(e)
-    if e.pdata.gui_open then
+    local window = e.pdata.gui.main.window
+    if window and window.valid and window.visible then
         mi_gui.close(e)
     else
-        -- TODO remove the destroy when done updating gui
-        mi_gui.destroy(e.pdata, e.player)
         mi_gui.open(e)
     end
 end

@@ -9,7 +9,6 @@
 --- @field active_config PresetConfig One of the presets in saved_presets
 --- @field saved_presets SavedPresets
 --- @field gui PlayerGui
---- @field gui_open boolean
 --- @field naming PresetConfig? preset currently being renamed
 --- @field closing boolean? Is the main window currently closing?
 --- @field pinned boolean Is the gui pinned
