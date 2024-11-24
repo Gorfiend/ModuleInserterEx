@@ -1,5 +1,3 @@
-local mod_gui = require("__core__.lualib.mod-gui")
-
 local table = require("__flib__.table")
 local gui = require("__flib__.gui")
 
@@ -285,34 +283,6 @@ mi_gui.templates = {
     end,
 }
 
---- @param player LuaPlayer?
-function mi_gui.update_main_button(player)
-    if not player then return end
-    local button_flow = mod_gui.get_button_flow(player)
-    local button = button_flow.module_inserter_config_button
-    local visible = not player.mod_settings["module-inserter-ex-hide-button"].value
-    local style = player.mod_settings["module-inserter-ex-button-style"].value --[[@as string]]
-    if not button or not button.valid then
-        gui.add(button_flow, { {
-            type = "sprite-button",
-            name = "module_inserter_config_button",
-            handler = mi_gui.handlers.mod_gui_button.toggle,
-            style = style,
-            sprite = "technology/modules"
-        } })
-        button = button_flow.module_inserter_config_button
-    end
-    button.style = style
-    button.visible = visible
-end
-
---- @param player LuaPlayer?
-function mi_gui.update_main_frame_buttons(player)
-    if not player then return end
-    local button = storage._pdata[player.index].gui.main.destroy_tool_button
-    button.visible = player.mod_settings["module-inserter-ex-hide-button"].value --[[@as boolean]]
-end
-
 function mi_gui.create(player_index)
     local pdata = storage._pdata[player_index]
     local player = game.get_player(player_index)
@@ -340,15 +310,6 @@ function mi_gui.create(player_index)
                         type = "empty-widget",
                         style = "flib_titlebar_drag_handle",
                         elem_mods = { ignored_by_interaction = true }, ---@diagnostic disable-line: missing-fields
-                    },
-                    {
-                        type = "sprite-button",
-                        name = "destroy_tool_button",
-                        style = "frame_action_button_red",
-                        sprite = "utility/trash",
-                        tooltip = { "module-inserter-ex-destroy" },
-                        handler = mi_gui.handlers.main.destroy_tool,
-                        visible = player.mod_settings["module-inserter-ex-hide-button"].value --[[@as boolean]],
                     },
                     {
                         type = "sprite-button",
@@ -805,9 +766,6 @@ function mi_gui.toggle(e)
 end
 
 mi_gui.handlers = {
-    mod_gui_button = {
-        toggle = mi_gui.toggle
-    },
     main = {
         --- @param e MiEventInfo
         default_checkbox = function(e)

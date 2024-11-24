@@ -1,5 +1,3 @@
-local mod_gui = require("__core__.lualib.mod-gui")
-
 local gui = require("__flib__.gui")
 local migration = require("__flib__.migration")
 local table = require("__flib__.table")
@@ -15,7 +13,7 @@ local debugDump = lib.debugDump
 storage = {} ---@diagnostic disable-line: missing-fields
 
 
---- @param e GuiEventData|EventData.on_mod_item_opened|EventData.CustomInputEvent
+--- @param e GuiEventData|EventData.on_mod_item_opened|EventData.CustomInputEvent|EventData.on_lua_shortcut
 --- @return MiEventInfo
 local function make_event_info(e)
     return {
@@ -53,8 +51,10 @@ end
 
 script.on_event("get-module-inserter-ex", get_module_inserter)
 script.on_event(defines.events.on_lua_shortcut, function(e)
-    if e.prototype_name == "module-inserter-ex" then
+    if e.prototype_name == "miex-get-module-inserter" then
         get_module_inserter(e)
+    elseif e.prototype_name == "miex-configure-module-inserter" then
+        mi_gui.toggle(make_event_info(e))
     end
 end)
 
@@ -286,7 +286,6 @@ local function init_player(i)
         pinned = false,
         cursor = false,
     }
-    mi_gui.update_main_button(game.get_player(i))
     mi_gui.create(i)
 end
 
@@ -311,14 +310,11 @@ local migrations = {
         -- Major update breaking compatibility - remove all storage and existing gui
         storage = {}
         for _, player in pairs(game.players) do
-            for _, elem in pairs(player.gui.screen.children) do
-                if elem.get_mod() == "ModuleInserterEx" then
-                    elem.destroy()
-                end
-            end
-            for _, elem in pairs(mod_gui.get_button_flow(player)) do
-                if elem.get_mod() == "ModuleInserterEx" then
-                    elem.destroy()
+            for _, parent in pairs(player.gui) do
+                for _, elem in pairs(parent.children) do
+                    if elem.get_mod() == "ModuleInserterEx" then
+                        elem.destroy()
+                    end
                 end
             end
         end
@@ -366,18 +362,9 @@ script.on_event(defines.events.on_player_removed, function(e)
     storage._pdata[e.player_index] = nil
 end)
 
-script.on_event(defines.events.on_runtime_mod_setting_changed, function(e)
-    if not e.player_index then return end
-    if e.setting == "module-inserter-ex-button-style" or e.setting == "module-inserter-ex-hide-button" then
-        mi_gui.update_main_button(game.get_player(e.player_index))
-        mi_gui.update_main_frame_buttons(game.get_player(e.player_index))
-    end
-end)
-
 script.on_event(defines.events.on_player_cursor_stack_changed, function(e)
     local player = game.get_player(e.player_index)
     if not player then return end
-    if player.mod_settings["module-inserter-ex-hide-button"].value then return end
     -- Track if they have the module inserter in hand, then when they let go remove it from their inventory
     -- Don't do this if the mod gui button to open the inserter options is disabled
     if player.cursor_stack.valid_for_read and player.cursor_stack.name == "module-inserter-ex" then

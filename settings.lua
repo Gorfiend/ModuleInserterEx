@@ -22,18 +22,4 @@ data:extend({
         default_value = true,
         order = "c"
     },
-    {
-        type = "bool-setting",
-        name = prefix .. "hide-button",
-        setting_type = "runtime-per-user",
-        default_value = false,
-        order = "d"
-    },
-    {
-        type = "string-setting",
-        name = prefix .. "button-style",
-        setting_type = "runtime-per-user",
-        default_value = "mod_gui_button",
-        allowed_values = {"mod_gui_button", "slot_button"}
-    }
 })
