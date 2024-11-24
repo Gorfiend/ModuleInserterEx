@@ -928,27 +928,39 @@ mi_gui.handlers = {
         add_module_row = function(e)
             --- @type ModuleRowTags
             local module_row_tags = e.event.element.parent.tags
-            local configs
-            if module_row_tags.row_index == 0 then
-                configs = e.pdata.active_config.default.configs
+            local row_index = module_row_tags.row_index
+            --- @type ModuleConfigSet
+            local config_set
+            local slots
+            if row_index == 0 then
+                config_set = e.pdata.active_config.default
+                slots = storage.max_slot_count
             else
-                configs = e.pdata.active_config.rows[module_row_tags.row_index].module_configs.configs
+                local row_config = e.pdata.active_config.rows[row_index]
+                config_set = row_config.module_configs
+                slots = util.get_target_config_max_slots(row_config.target)
             end
-            configs[#configs + 1] = types.make_module_config()
-            mi_gui.update_contents(e.player, e.pdata) -- TODO can make this update only the changed module set
+            config_set.configs[#config_set.configs + 1] = types.make_module_config()
+            mi_gui.update_module_set(e.player, row_index, e.pdata.gui.main.config_rows.children[row_index].module_set, slots, config_set)
         end,
         --- @param e MiEventInfo
         delete_module_row = function(e)
             --- @type ModuleRowTags
             local module_row_tags = e.event.element.parent.tags
-            local configs
-            if module_row_tags.row_index == 0 then
-                configs = e.pdata.active_config.default.configs
+            local row_index = module_row_tags.row_index
+            --- @type ModuleConfigSet
+            local config_set
+            local slots
+            if row_index == 0 then
+                config_set = e.pdata.active_config.default
+                slots = storage.max_slot_count
             else
-                configs = e.pdata.active_config.rows[module_row_tags.row_index].module_configs.configs
+                local row_config = e.pdata.active_config.rows[row_index]
+                config_set = row_config.module_configs
+                slots = util.get_target_config_max_slots(row_config.target)
             end
-            table.remove(configs, module_row_tags.module_row_index)
-            mi_gui.update_contents(e.player, e.pdata) -- TODO can make this update only the changed module set
+            table.remove(config_set.configs, module_row_tags.module_row_index)
+            mi_gui.update_module_set(e.player, row_index, e.pdata.gui.main.config_rows.children[row_index].module_set, slots, config_set)
         end,
     },
     presets = {
