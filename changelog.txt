@@ -2,6 +2,15 @@
 Version: 7.0.0
 Date: ????
   Changes:
+    - Updated for Factorio 2.0
+    - Major rewrite of the mod. Most things are similar, but significantly reworked.
+    - Updating modules in entities changed to use native blueprinting functionality
+    - New "default" module section instead of the special "anything" entity.
+    - Can now choose multiple entities to map to a set of modules
+    - Can define multiple modules sets for the same entity group (to e.g. have a fallback if productivity modules don't work in the current recipe)
+    - Preset handling reworked. Now the active config is equal to a preset, with any changes automatically applying to the preset as well.
+    - Import/Export changed to use json strings only (no support to import/export blueprints anymore)
+    - Removed top-left mod button, and ability to keep the module inserter tool as an item - interaction is all through shortcut buttons and custom inputs.
 ---------------------------------------------------------------------------------------------------
 Version: 6.1.3
 Date: 2024-08-18
