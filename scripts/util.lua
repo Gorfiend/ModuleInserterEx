@@ -264,6 +264,7 @@ end
 --- Resize the config rows, removing empty rows, and making sure one empty row at the end
 --- @param config PresetConfig
 function util.normalize_preset_config(config)
+    util.normalize_module_set(storage.max_slot_count, config.default)
     -- Remove all empty configs
     local index = 1
     while index <= #config.rows do

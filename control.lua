@@ -90,7 +90,7 @@ local function on_player_selected_area(e)
         local pdata = storage._pdata[player_index]
         local active_preset = pdata.active_config
         if not active_preset then
-            player.print({"module-inserter-ex-config-not-set"})
+            player.print({ "module-inserter-ex-config-not-set" })
             return
         end
         local surface = player.surface
@@ -98,7 +98,6 @@ local function on_player_selected_area(e)
         local max_proxies = settings.global["module-inserter-ex-proxies-per-tick"].value
         local result_messages = {}
         for i, entity in pairs(e.entities) do
-
             --skip the entity if it is a tile ghost
             if entity.type == "tile-ghost" then
                 goto continue
@@ -111,7 +110,7 @@ local function on_player_selected_area(e)
                     delay = delay + 1
                 end
                 if not storage.to_create[delay] then storage.to_create[delay] = {} end
-                storage.to_create[delay][entity.unit_number --[[@as int]]] = {
+                storage.to_create[delay][ entity.unit_number --[[@as int]] ] = {
                     entity = entity,
                     module_config = table.deep_copy(modules),
                     player = player,
@@ -221,7 +220,6 @@ local function remove_invalid_items()
 
     --- @param preset PresetConfig
     local function _clean(preset)
-        -- TODO shrink the default config if needed
         --- @param module_config ModuleConfigSet
         local function _clean_module_config(module_config)
             for _, mc in pairs(module_config.configs) do
@@ -230,7 +228,7 @@ local function remove_invalid_items()
                         mc.module_list[i] = nil
                         removed_modules[m.name] = true
                     end
-            end
+                end
             end
         end
         _clean_module_config(preset.default)
@@ -296,7 +294,7 @@ script.on_load(function()
 end)
 
 local migrations = {
-    ["7.0.0"] = function ()
+    ["7.0.0"] = function()
         -- Major update breaking compatibility - remove all storage and existing gui
         for _, player in pairs(game.players) do
             -- player.gui.top.mod_gui_top_frame.mod_gui_inner_frame.module_inserter_config_button
@@ -352,7 +350,7 @@ local function make_handler_table()
     return handler_table
 end
 
-gui.add_handlers(make_handler_table(), function (e, handler)
+gui.add_handlers(make_handler_table(), function(e, handler)
     handler(make_event_info(e))
 end)
 
