@@ -82,7 +82,7 @@ mi_gui.templates = {
                 {
                     type = "sprite-button",
                     name = "delete_module_row_button",
-                    tooltip = "Delete this module set", -- TODO locale
+                    tooltip = { "module-inserter-ex-delete-module-set" },
                     sprite = "utility/trash",
                     style = "tool_button_red",
                     style_mods = { margin = 6, },
@@ -91,7 +91,7 @@ mi_gui.templates = {
                 {
                     type = "sprite-button",
                     name = "add_module_row_button",
-                    tooltip = "Add an alternative module set\nThis can be used to provide a fallback set of modules to use, in case the first set is invalid (e.g. due to it containing productivity modules, and the current recipe doesn't allow productivity)\nWhen inserting, sets will be tried from top to bottom, and the first valid one will be used", -- TODO locale
+                    tooltip = { "module-inserter-ex-add-module-set" },
                     sprite = "utility/add",
                     style = "tool_button",
                     style_mods = { margin = 6, },
@@ -99,7 +99,7 @@ mi_gui.templates = {
                 },
             },
         }
-    return row_frame
+        return row_frame
     end,
 
     --- @param name string Name to give this gui element
@@ -184,7 +184,7 @@ mi_gui.templates = {
                     name = "rename_button",
                     style = "tool_button",
                     sprite = "utility/rename_icon",
-                    tooltip = "Rename this preset",
+                    tooltip = { "module-inserter-ex-rename-preset" },
                     handler = mi_gui.handlers.preset.rename,
                 },
                 {
@@ -193,14 +193,14 @@ mi_gui.templates = {
                     icon_selector = true,
                     visible = false,
                     style_mods = { width = PRESET_BUTTON_FIELD_WIDTH },
-                    handler = { [defines.events.on_gui_confirmed] = mi_gui.handlers.preset.rename,}
+                    handler = { [defines.events.on_gui_confirmed] = mi_gui.handlers.preset.rename, }
                 },
                 {
                     type = "sprite-button",
                     name = "rename_confirm_button",
                     style = "item_and_count_select_confirm",
                     sprite = "utility/enter",
-                    tooltip = "Confirm rename of this preset",
+                    tooltip = { "module-inserter-ex-confirm-rename-preset" },
                     visible = false,
                     handler = mi_gui.handlers.preset.rename,
                 },
@@ -217,7 +217,7 @@ mi_gui.templates = {
                     name = "delete_button",
                     style = "tool_button_red",
                     sprite = "utility/trash",
-                    tooltip = "Delete this preset", -- TODO Translate
+                    tooltip = { "module-inserter-ex-delete-preset" },
                     handler = mi_gui.handlers.preset.delete,
                 },
             }
@@ -303,7 +303,7 @@ function mi_gui.create(player_index)
                     {
                         type = "label",
                         style = "frame_title",
-                        caption = "Module Inserter",
+                        caption = { "module-inserter-ex-config-window-title" },
                         elem_mods = { ignored_by_interaction = true }, ---@diagnostic disable-line: missing-fields
                     },
                     {
@@ -362,15 +362,14 @@ function mi_gui.create(player_index)
                                     {
                                         type = "label",
                                         style_mods = { minimal_width = TARGET_SECTION_WIDTH, horizontal_align = "center", }, ---@diagnostic disable-line: missing-fields
-                                        -- TODO translate stuff
-                                        caption = { "", "Target entities", " [img=info]" },
-                                        tooltip = "Entities to place modules in\nEach row defines a mapping of entities to a module specification used to determine what modules to fill them with",
+                                        caption = { "", "module-inserter-ex-target-entities", " [img=info]" },
+                                        tooltip = { "module-inserter-ex-target-entities-tooltip" },
                                     },
                                     mi_gui.templates.pushers.horizontal,
                                     {
                                         type = "label",
-                                        caption = { "", "Module Specification", " [img=info]" },
-                                        tooltip = "Modules to insert\nDefine what modules to insert into the associated entities (on the left)\nIf an entity has fewer module slots, it will use the first modules up to it's module slot count and ignore the rest\nCan also define alternate module sets, in case the first is not always applicable (e.g. has productivity modules)",
+                                        caption = { "", "module-inserter-ex-module-specification", " [img=info]" },
+                                        tooltip = { "module-inserter-ex-module-specification-tooltip" },
                                     },
                                     mi_gui.templates.pushers.horizontal,
                                 }
@@ -398,14 +397,14 @@ function mi_gui.create(player_index)
                                                         children = {
                                                             type = "checkbox",
                                                             name = "default_checkbox",
-                                                            caption = "Default Modules",
+                                                            caption = { "module-inserter-ex-default-modules" },
                                                             state = false,
                                                             style_mods = {
                                                                 margin = 6,
                                                                 horizontally_stretchable = true,
                                                             },
                                                             handler = { [defines.events.on_gui_checked_state_changed] = mi_gui.handlers.main.default_checkbox },
-                                                            tooltip = "If checked, will fill any entities not specified below with the modules here", -- TODO move text string to locale
+                                                            tooltip =  { "module-inserter-ex-default-modules-tooltip" },
                                                         }
                                                     },
                                                     mi_gui.templates.module_set("default_module_set"),
@@ -473,8 +472,8 @@ function mi_gui.create(player_index)
                             {
                                 type = "button",
                                 name = "add_preset_button",
-                                caption = "Add Preset", -- TODO translate
-                                tooltip = "Create a new preset.\nHold Shift to copy the current preset",
+                                caption = { "module-inserter-ex-add-preset" },
+                                tooltip = { "module-inserter-ex-add-preset-tooltip" },
                                 style_mods = { horizontally_stretchable = true, }, ---@diagnostic disable-line: missing-fields
                                 handler = mi_gui.handlers.presets.add
                             },
@@ -498,7 +497,7 @@ function mi_gui.create(player_index)
 
     refs.main_window.force_auto_center()
     mi_gui.update_presets(pdata)
-    mi_gui.update_contents(pdata)
+    mi_gui.update_contents(player, pdata)
     refs.main_window.visible = false
 end
 
@@ -526,9 +525,10 @@ function mi_gui.create_import_window(pdata, player, bp_string)
     textbox.focus()
 end
 
+--- @param player LuaPlayer
 --- @param gui_config_rows LuaGuiElement
 --- @param config_tmp PresetConfig
-function mi_gui.update_rows(gui_config_rows, config_tmp)
+function mi_gui.update_rows(player, gui_config_rows, config_tmp)
     -- Add or destroy rows as needed
     while #gui_config_rows.children < #config_tmp.rows do
         gui.add(gui_config_rows, { mi_gui.templates.config_row(#gui_config_rows.children + 1) })
@@ -538,15 +538,16 @@ function mi_gui.update_rows(gui_config_rows, config_tmp)
     end
 
     for index, row_config in ipairs(config_tmp.rows) do
-        mi_gui.update_row(gui_config_rows, row_config, index)
+        mi_gui.update_row(player, gui_config_rows, row_config, index)
     end
 end
 
+--- @param player LuaPlayer
 --- @param gui_module_row LuaGuiElement
 --- @param slots int
 --- @param config_set ModuleConfigSet
 --- @param index int index of this module row in the set
-function mi_gui.update_modules(gui_module_row, slots, config_set, index)
+function mi_gui.update_modules(player, gui_module_row, slots, config_set, index)
     local module_config = config_set.configs[index]
     gui_module_row.add_module_row_button.visible = (index == #config_set.configs)
     gui_module_row.delete_module_row_button.enabled = #config_set.configs > 1
@@ -567,23 +568,27 @@ function mi_gui.update_modules(gui_module_row, slots, config_set, index)
     for i = 1, slots do
         local child = button_table.children[i]
         child.elem_value = module_list[i]
-        -- TODO if this is the first slot, and the setting for fill from first is set, add that info to the tooltip
-        child.tooltip = module_list[i] and prototypes.item[module_list[i].name].localised_name or { "module-inserter-ex-choose-module" }
+        local tooltip = module_list[i] and prototypes.item[module_list[i].name].localised_name or { "module-inserter-ex-choose-module" }
+        if i == 1 and player.mod_settings["module-inserter-ex-fill-all"].value then
+            tooltip = { "", tooltip, { "module-inserter-ex-choose-module-fill-all-tooltip" } }
+        end
+        child.tooltip = tooltip
     end
 end
 
+--- @param player LuaPlayer
 --- @param row_index int index of the row being updated (0 for the default config)
 --- @param module_set LuaGuiElement
 --- @param slots int
 --- @param config_set ModuleConfigSet
-function mi_gui.update_module_set(row_index, module_set, slots, config_set)
+function mi_gui.update_module_set(player, row_index, module_set, slots, config_set)
     for i, config_row in ipairs(config_set.configs) do
         local module_row = module_set.children[i]
         if not module_row then
             gui.add(module_set, mi_gui.templates.module_row(row_index, i, slots))
         end
         module_row = module_set.children[i]
-        mi_gui.update_modules(module_row, slots, config_set, i)
+        mi_gui.update_modules(player, module_row, slots, config_set, i)
     end
 
     while #module_set.children > #config_set.configs do
@@ -613,10 +618,11 @@ function mi_gui.update_target_section(gui_target_table, target_config)
     end
 end
 
+--- @param player LuaPlayer
 --- @param gui_config_rows LuaGuiElement
 --- @param row_config RowConfig
 --- @param row_index int index of the row config being updated
-function mi_gui.update_row(gui_config_rows, row_config, row_index)
+function mi_gui.update_row(player, gui_config_rows, row_config, row_index)
     if not (gui_config_rows and gui_config_rows.valid) then return end
     local row = gui_config_rows.children[row_index]
     if not row then
@@ -635,35 +641,37 @@ function mi_gui.update_row(gui_config_rows, row_config, row_index)
     else
         local slots = util.get_target_config_max_slots(row_config.target)
         -- Update the module section
-        mi_gui.update_module_set(row_index, row.module_set, slots, row_config.module_configs)
+        mi_gui.update_module_set(player, row_index, row.module_set, slots, row_config.module_configs)
     end
 end
 
+--- @param player LuaPlayer
 --- @param pdata PlayerConfig
-function mi_gui.update_contents(pdata)
+function mi_gui.update_contents(player, pdata)
     local active_config = pdata.active_config
 
     pdata.gui.main.default_checkbox.state = active_config.use_default
     if active_config.use_default then
         pdata.gui.main.default_module_set.visible = true
-        mi_gui.update_module_set(0, pdata.gui.main.default_module_set, storage.max_slot_count, active_config.default)
+        mi_gui.update_module_set(player, 0, pdata.gui.main.default_module_set, storage.max_slot_count, active_config.default)
     else
         pdata.gui.main.default_module_set.visible = false
     end
 
-    mi_gui.update_rows(pdata.gui.main.config_rows, active_config)
+    mi_gui.update_rows(player, pdata.gui.main.config_rows, active_config)
 end
 
+--- @param player LuaPlayer
 --- @param pdata PlayerConfig
 --- @param select boolean? Whether to select the new preset
 --- @param data PresetConfig? data to restore
 --- @return boolean
-function mi_gui.add_preset(pdata, select, data)
+function mi_gui.add_preset(player, pdata, select, data)
     local new_preset = data or types.make_preset_config(util.generate_random_name())
     table.insert(pdata.saved_presets, new_preset)
     if select then
         pdata.active_config = new_preset
-        mi_gui.update_contents(pdata)
+        mi_gui.update_contents(player, pdata)
     end
     mi_gui.update_presets(pdata)
     return true
@@ -766,13 +774,13 @@ mi_gui.handlers = {
         --- @param e MiEventInfo
         default_checkbox = function(e)
             e.pdata.active_config.use_default = e.pdata.gui.main.default_checkbox.state
-            mi_gui.update_contents(e.pdata)
+            mi_gui.update_contents(e.player, e.pdata)
         end,
         --- @param e MiEventInfo
         clear_all = function(e)
             e.pdata.active_config.default = types.make_module_config_set()
             e.pdata.active_config.rows = { types.make_row_config() }
-            mi_gui.update_contents(e.pdata)
+            mi_gui.update_contents(e.player, e.pdata)
         end,
         --- @param e MiEventInfo
         close_window = function(e)
@@ -823,9 +831,9 @@ mi_gui.handlers = {
                         if target and target == elem_value then
                             element.elem_value = old_value
                             if k == tags.row_index then
-                                e.player.print({ "", prototypes.entity[elem_value].localised_name, " is already configured in this row " })
+                                e.player.print({ "module-inserter-ex-already-configured-in-this-row", prototypes.entity[elem_value].localised_name })
                             else
-                                e.player.print({ "", prototypes.entity[elem_value].localised_name, " is already configured in row ", k })
+                                e.player.print({ "module-inserter-ex-already-configured-in-another-row", prototypes.entity[elem_value].localised_name, k })
                             end
                             return
                         end
@@ -848,10 +856,9 @@ mi_gui.handlers = {
 
             local do_scroll = elem_value and tags.row_index == #active_config.rows
 
-            -- TODO ensure the module set is valid for the entity (probably don't change the entity if there's invalid modules, and show a message)
             util.normalize_preset_config(active_config)
 
-            mi_gui.update_rows(e.pdata.gui.main.config_rows, active_config)
+            mi_gui.update_rows(e.player, e.pdata.gui.main.config_rows, active_config)
             if do_scroll then
                 e.pdata.gui.main.scroll.scroll_to_bottom()
             end
@@ -907,9 +914,9 @@ mi_gui.handlers = {
             util.normalize_module_set(slot_count, module_config_set)
 
             if not is_default_config then
-                mi_gui.update_module_set(module_button_tags.row_index, config_rows.children[module_button_tags.row_index].module_set, slot_count, module_config_set)
+                mi_gui.update_module_set(e.player, module_button_tags.row_index, config_rows.children[module_button_tags.row_index].module_set, slot_count, module_config_set)
             else
-                mi_gui.update_module_set(0, e.pdata.gui.main.default_module_set, slot_count, module_config_set)
+                mi_gui.update_module_set(e.player, 0, e.pdata.gui.main.default_module_set, slot_count, module_config_set)
             end
         end,
         --- @param e MiEventInfo
@@ -928,10 +935,10 @@ mi_gui.handlers = {
                 configs = e.pdata.active_config.rows[module_row_tags.row_index].module_configs.configs
             end
             configs[#configs + 1] = types.make_module_config()
-            mi_gui.update_contents(e.pdata) -- TODO can make this update only the changed module set
+            mi_gui.update_contents(e.player, e.pdata) -- TODO can make this update only the changed module set
         end,
         --- @param e MiEventInfo
-        delete_module_row = function (e)
+        delete_module_row = function(e)
             --- @type ModuleRowTags
             local module_row_tags = e.event.element.parent.tags
             local configs
@@ -941,7 +948,7 @@ mi_gui.handlers = {
                 configs = e.pdata.active_config.rows[module_row_tags.row_index].module_configs.configs
             end
             table.remove(configs, module_row_tags.module_row_index)
-            mi_gui.update_contents(e.pdata) -- TODO can make this update only the changed module set
+            mi_gui.update_contents(e.player, e.pdata) -- TODO can make this update only the changed module set
         end,
     },
     presets = {
@@ -949,11 +956,11 @@ mi_gui.handlers = {
         --- @param e MiEventInfo
         add = function(e)
             if e.event.shift then
-                mi_gui.add_preset(e.pdata, true, table.deep_copy(e.pdata.active_config))
+                mi_gui.add_preset(e.player, e.pdata, true, table.deep_copy(e.pdata.active_config))
             else
-                mi_gui.add_preset(e.pdata, true)
+                mi_gui.add_preset(e.player, e.pdata, true)
             end
-    end,
+        end,
 
         --- @param e MiEventInfo
         import = function(e)
@@ -981,7 +988,7 @@ mi_gui.handlers = {
             util.normalize_preset_config(pdata.active_config)
 
             pdata.naming = nil -- Cancel any active rename
-            mi_gui.update_contents(pdata)
+            mi_gui.update_contents(e.player, pdata)
             mi_gui.update_presets(pdata)
 
             local keep_open = not e.player.mod_settings["module-inserter-ex-close-after-load"].value
@@ -1010,7 +1017,7 @@ mi_gui.handlers = {
             table.remove(e.pdata.saved_presets, tags.preset_index)
             if update_selection then
                 e.pdata.active_config = e.pdata.saved_presets[math.min(#e.pdata.saved_presets, tags.preset_index)]
-                mi_gui.update_contents(e.pdata)
+                mi_gui.update_contents(e.player, e.pdata)
             end
             mi_gui.update_presets(e.pdata)
         end,
@@ -1055,7 +1062,7 @@ mi_gui.handlers = {
                 return
             end
             for _, preset in ipairs(configs) do
-                mi_gui.add_preset(e.pdata, false, preset)
+                mi_gui.add_preset(e.player, e.pdata, false, preset)
             end
             mi_gui.handlers.import.close_button(e)
         end,
