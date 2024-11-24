@@ -487,7 +487,6 @@ function mi_gui.create(player_index)
     pdata.gui.main = {
         window = refs.main_window,
         pin_button = refs.pin_button,
-        destroy_tool_button = refs.destroy_tool_button,
         scroll = refs.main_scroll,
         config_rows = refs.config_rows,
         default_checkbox = refs.default_checkbox,

@@ -308,28 +308,40 @@ end)
 local migrations = {
     ["7.0.0"] = function ()
         -- Major update breaking compatibility - remove all storage and existing gui
-        storage = {}
         for _, player in pairs(game.players) do
-            for _, parent in pairs(player.gui) do
-                for _, elem in pairs(parent.children) do
-                    if elem.get_mod() == "ModuleInserterEx" then
-                        elem.destroy()
-                    end
+            -- player.gui.top.mod_gui_top_frame.mod_gui_inner_frame.module_inserter_config_button
+            local pdata = storage._pdata[player.index]
+            if player.gui.top and player.gui.top.mod_gui_top_frame and player.gui.top.mod_gui_top_frame.mod_gui_inner_frame then
+                local frame = player.gui.top.mod_gui_top_frame.mod_gui_inner_frame
+                if frame.module_inserter_config_button and frame.module_inserter_config_button.valid then
+                    frame.module_inserter_config_button.destroy()
+                end
+            end
+            if pdata.gui then
+                if pdata.gui.main.window and pdata.gui.main.window.valid then
+                    pdata.gui.main.window.destroy()
+                end
+                if pdata.gui.import and pdata.gui.import.window and pdata.gui.import.window.valid then
+                    pdata.gui.import.window.destroy()
                 end
             end
         end
+        storage = {}
+        create_lookup_tables()
+        init_global()
+        init_players()
     end
 }
 
 script.on_configuration_changed(function(e)
     create_lookup_tables()
-    remove_invalid_items()
     if migration.on_config_changed(e, migrations) then
         for pi, pdata in pairs(storage._pdata) do
             mi_gui.destroy(pdata, game.get_player(pi) --[[@as LuaPlayer]])
             mi_gui.create(pi)
         end
     end
+    remove_invalid_items()
     conditional_events(true)
 end)
 

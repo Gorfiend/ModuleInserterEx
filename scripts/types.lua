@@ -27,7 +27,6 @@
 --- @class (exact) PlayerGuiMain
 --- @field window LuaGuiElement
 --- @field pin_button LuaGuiElement
---- @field destroy_tool_button LuaGuiElement
 --- @field scroll LuaGuiElement
 --- @field config_rows LuaGuiElement
 --- @field default_checkbox LuaGuiElement
