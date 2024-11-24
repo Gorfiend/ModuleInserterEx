@@ -362,13 +362,13 @@ function mi_gui.create(player_index)
                                     {
                                         type = "label",
                                         style_mods = { minimal_width = TARGET_SECTION_WIDTH, horizontal_align = "center", }, ---@diagnostic disable-line: missing-fields
-                                        caption = { "", "module-inserter-ex-target-entities", " [img=info]" },
+                                        caption = { "", { "module-inserter-ex-target-entities" }, " [img=info]" },
                                         tooltip = { "module-inserter-ex-target-entities-tooltip" },
                                     },
                                     mi_gui.templates.pushers.horizontal,
                                     {
                                         type = "label",
-                                        caption = { "", "module-inserter-ex-module-specification", " [img=info]" },
+                                        caption = { "", { "module-inserter-ex-module-specification" }, " [img=info]" },
                                         tooltip = { "module-inserter-ex-module-specification-tooltip" },
                                     },
                                     mi_gui.templates.pushers.horizontal,
@@ -567,7 +567,7 @@ function mi_gui.update_modules(player, gui_module_row, slots, config_set, index)
 
     for i = 1, slots do
         local child = button_table.children[i]
-        child.elem_value = module_list[i]
+        child.elem_value = module_list[i] or nil
         local tooltip = module_list[i] and prototypes.item[module_list[i].name].localised_name or { "module-inserter-ex-choose-module" }
         if i == 1 and player.mod_settings["module-inserter-ex-fill-all"].value then
             tooltip = { "", tooltip, { "module-inserter-ex-choose-module-fill-all-tooltip" } }
@@ -899,7 +899,7 @@ mi_gui.handlers = {
                 local valid, error = util.module_valid_for_config(element.elem_value.name, target_config)
                 if not valid then
                     e.player.print(error)
-                    element.elem_value = module_config.module_list[slot]
+                    element.elem_value = module_config.module_list[slot] or nil
                     return
                 end
             end
@@ -932,16 +932,19 @@ mi_gui.handlers = {
             --- @type ModuleConfigSet
             local config_set
             local slots
+            local gui_module_set
             if row_index == 0 then
                 config_set = e.pdata.active_config.default
                 slots = storage.max_slot_count
+                gui_module_set = e.pdata.gui.main.default_module_set
             else
                 local row_config = e.pdata.active_config.rows[row_index]
                 config_set = row_config.module_configs
                 slots = util.get_target_config_max_slots(row_config.target)
+                gui_module_set = e.pdata.gui.main.config_rows.children[row_index].module_set
             end
             config_set.configs[#config_set.configs + 1] = types.make_module_config()
-            mi_gui.update_module_set(e.player, row_index, e.pdata.gui.main.config_rows.children[row_index].module_set, slots, config_set)
+            mi_gui.update_module_set(e.player, row_index, gui_module_set, slots, config_set)
         end,
         --- @param e MiEventInfo
         delete_module_row = function(e)
@@ -951,16 +954,19 @@ mi_gui.handlers = {
             --- @type ModuleConfigSet
             local config_set
             local slots
+            local gui_module_set
             if row_index == 0 then
                 config_set = e.pdata.active_config.default
                 slots = storage.max_slot_count
+                gui_module_set = e.pdata.gui.main.default_module_set
             else
                 local row_config = e.pdata.active_config.rows[row_index]
                 config_set = row_config.module_configs
                 slots = util.get_target_config_max_slots(row_config.target)
+                gui_module_set = e.pdata.gui.main.config_rows.children[row_index].module_set
             end
             table.remove(config_set.configs, module_row_tags.module_row_index)
-            mi_gui.update_module_set(e.player, row_index, e.pdata.gui.main.config_rows.children[row_index].module_set, slots, config_set)
+            mi_gui.update_module_set(e.player, row_index, gui_module_set, slots, config_set)
         end,
     },
     presets = {
@@ -1068,9 +1074,9 @@ mi_gui.handlers = {
             local pdata = e.pdata
             local text_box = pdata.gui.import.textbox
             local configs = import_export.import_config(text_box.text)
-            if not configs then
+            if type(configs) == "string" then
                 -- TODO maybe add a more detailed failure message
-                player.print({ "failed-to-import-string", "Invalid Format" })
+                player.print({ "failed-to-import-string", configs })
                 return
             end
             for _, preset in ipairs(configs) do

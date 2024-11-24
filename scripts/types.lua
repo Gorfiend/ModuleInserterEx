@@ -56,7 +56,7 @@
 --- @field configs ModuleConfig[]
 
 --- @class (exact) ModuleConfig
---- @field module_list ItemIDAndQualityIDPair[] array of module slot indexes to the module in that slot
+--- @field module_list (false|ItemIDAndQualityIDPair)[] array of module slot indexes to the module in that slot (or false if no module)
 
 
 --- @class (exact) MiEventInfo

@@ -17,9 +17,9 @@ function util.generate_random_name()
 end
 
 --- @param pair ItemIDAndQualityIDPair?
---- @return ItemIDAndQualityIDPair?
+--- @return ItemIDAndQualityIDPair|false?
 function util.normalize_id_quality_pair(pair)
-    if not pair then return end
+    if not pair then return false end
     if pair.quality and not type(pair.quality) == "string" then
         return {
             name = pair.name,
@@ -35,13 +35,15 @@ end
 function util.entity_valid_for_modules(entity, module_config)
     local entity_proto = prototypes.entity[entity]
     for _, module_info in pairs(module_config.module_list) do
-        local proto = prototypes.item[module_info.name]
-        local itemEffects = proto.module_effects
-        if itemEffects then
-            for name, effect in pairs(itemEffects) do
-                if effect > 0 then
-                    if not entity_proto.allowed_effects[name] then
-                        return false, { "inventory-restriction.cant-insert-module", proto.localised_name, entity_proto.localised_name }
+        if module_info then
+            local proto = prototypes.item[module_info.name]
+            local itemEffects = proto.module_effects
+            if itemEffects then
+                for name, effect in pairs(itemEffects) do
+                    if effect > 0 then
+                        if not entity_proto.allowed_effects[name] then
+                            return false, { "inventory-restriction.cant-insert-module", proto.localised_name, entity_proto.localised_name }
+                        end
                     end
                 end
             end
@@ -150,7 +152,7 @@ function util.create_request_proxy(data)
         local stack = module_inventory[i]
         local target = modules[i]
         local need_to_remove = false
-        local need_to_add = target ~= nil
+        local need_to_add = not not target
         if stack.valid_for_read then
             -- If it's already the target module, then do nothing
             if target and stack.name == target.name and stack.quality.name == target.quality then
@@ -197,7 +199,10 @@ end
 --- @param module_config ModuleConfig
 --- @return boolean
 function util.module_config_has_entries(module_config)
-    return next(module_config.module_list) ~= nil
+    for _, value in ipairs(module_config.module_list) do
+        if value then return true end
+    end
+    return false
 end
 
 --- @param target_config TargetConfig
@@ -222,7 +227,7 @@ function util.get_target_config_max_slots(target_config)
     return max_slots
 end
 
---- Resize the config set, removing empty configs, and making sure one empty config at the end
+--- Resize the module lists if needed
 --- @param slots int Number of slots in each row
 --- @param module_set ModuleConfigSet
 function util.normalize_module_set(slots, module_set)
@@ -230,20 +235,18 @@ function util.normalize_module_set(slots, module_set)
     local index = 1
     while index <= #module_set.configs do
         local module_config = module_set.configs[index]
-        -- local have_entries = util.module_config_has_entries(module_config)
-        -- if not have_entries then
-        --     table.remove(module_set.configs, index)
-        -- else
-            -- Clear slots that are not used anymore
-            for slot_index = slots + 1, storage.max_slot_count do
-                module_config.module_list[slot_index] = nil
+        -- Clear slots that are not used anymore
+        for slot_index = slots + 1, storage.max_slot_count do
+            module_config.module_list[slot_index] = nil
+        end
+        -- Make sure it maps each slot
+        for slot_index = 1, slots do
+            if not module_config.module_list[slot_index] then
+                module_config.module_list[slot_index] = false
             end
-            index = index + 1
-        -- end
+        end
+        index = index + 1
     end
-
-    -- -- Add a single empty config to the end
-    -- table.insert(module_set.configs, types.make_module_config())
 end
 
 --- Resize the config set, removing empty slots
@@ -292,18 +295,22 @@ function util.modules_allowed(recipe, modules)
     -- TODO may want to cache this result?
     if recipe.prototype.allowed_module_categories then
         for _, module in pairs(modules.module_list) do
-            local category = prototypes.item[module.name].category
-            if not recipe.prototype.allowed_module_categories[category] then
-                return false, { "item-limitation." .. category .. "-effect"}
+            if module then
+                local category = prototypes.item[module.name].category
+                if not recipe.prototype.allowed_module_categories[category] then
+                    return false, { "item-limitation." .. category .. "-effect"}
+                end
             end
         end
     end
     if recipe.prototype.allowed_effects then
         for _, module in pairs(modules.module_list) do
-            for effect_name, effect_num in pairs(prototypes.item[module.name].module_effects) do
-                if effect_num > 0 and not recipe.prototype.allowed_effects[effect_name] then
-                    local category = prototypes.item[module.name].category
-                    return false, { "item-limitation." .. category .. "-effect"}
+            if module then
+                for effect_name, effect_num in pairs(prototypes.item[module.name].module_effects) do
+                    if effect_num > 0 and not recipe.prototype.allowed_effects[effect_name] then
+                        local category = prototypes.item[module.name].category
+                        return false, { "item-limitation." .. category .. "-effect"}
+                    end
                 end
             end
         end
@@ -340,7 +347,6 @@ function util.choose_module_config_from_set(entity, module_config_set)
     local config_to_use = nil
     local messages = {}
     for _, module_config in pairs(module_config_set.configs) do
-        if table_size(module_config.module_list) == 0 then break end -- The empty config, skip it
         local valid, message = util.entity_valid_for_modules(ent_name, module_config)
         if valid then
             if recipe then

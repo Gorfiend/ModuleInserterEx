@@ -3,7 +3,7 @@ local import_export = {}
 local checker = {}
 
 --- @alias Checkers {[string]:Checker}
---- @alias Checker fun(x): boolean
+--- @alias Checker fun(x): string?
 
 local function is_array(t)
     local i = 0
@@ -16,137 +16,146 @@ end
 
 --- Checks every field passed as defined by checkers param
 --- Removed any keys not present in checkers
+--- @param table_name string name of the table
 --- @param tbl any
 --- @param checkers Checkers keys mapped to validator function
---- @return boolean
-local function check_all(tbl, checkers)
-    if type(tbl) ~= "table" then return false end
+--- @return string? error string
+local function check_all(table_name, tbl, checkers)
+    if type(tbl) ~= "table" then return table_name .. " not a table" end
     for key, check in pairs(checkers) do
-        if not check(tbl[key]) then return false end
+        local err = check(tbl[key])
+        if err then return key .. " in " .. table_name .. " not valid: " .. err end
     end
-    for key, value in pairs(tbl) do
-        if checkers[key] then
-            if not checkers[key](value) then
-                return false
-            end
-        else
+    for key, _ in pairs(tbl) do
+        -- Remove any keys not wanted by the checkers
+        if not checkers[key] then
             tbl[key] = nil
         end
     end
-    return true
 end
 
 --- Run check_all on all elements in the given array
+--- @param table_name string name of the table
 --- @param arr table checks if it is an array first
 --- @param checkers Checkers
---- @return boolean
-local function check_all_in_array(arr, checkers)
-    if not is_array(arr) then return false end
-    for _, value in ipairs(arr) do
-        if not check_all(value, checkers) then return false end
+--- @return string? error string
+local function check_all_in_array(table_name, arr, checkers)
+    if not is_array(arr) then return table_name .. " not an array" end
+    for i, value in ipairs(arr) do
+        local val_name = table_name .. "[" .. i .. "]"
+        local err = check_all(val_name, value, checkers)
+        if err then return val_name .. " not valid: " .. err end
     end
-    return true
 end
 
 --- Run check on all elements in the given array
+--- @param table_name string name of the table
 --- @param arr table checks if it is an array first
 --- @param check Checker run on every element of the array
---- @return boolean
-local function check_array(arr, check)
-    if not is_array(arr) then return false end
-    for _, value in ipairs(arr) do
-        if not check(value) then return false end
+--- @return string? error string
+local function check_array(table_name, arr, check)
+    if not is_array(arr) then return table_name .. " not an array" end
+    for i, value in ipairs(arr) do
+        local val_name = table_name .. "[" .. i .. "]"
+        local err = check(value)
+        if err then return val_name .. " not valid: " .. err end
     end
-    return true
 end
 
---- @return boolean
+--- @return string? error string
 function checker.preset(preset)
     if type(preset) ~= "table" then
-        return false
+        return "preset not a table"
     end
 
-    if not preset.name then return false end
+    if not preset.name then return "preset has no name" end
 
-    return check_all(preset, {
+    return check_all("preset", preset, {
         name = function(x)
-            return type(x) == "string" and x ~= ""
+            if type(x) ~= "string" then return "name is not a string" end
+            if x == "" then return "name is empty" end
         end,
         default = checker.module_config_set,
         use_default = function(x)
-            return type(x) == "boolean"
+            if type(x) ~= "boolean" then return "use_default not a boolean" end
         end,
         rows = checker.rows,
     })
 end
 
---- @return boolean
+--- @return string? error string
 function checker.rows(rows)
-    return check_all_in_array(rows, {
+    return check_all_in_array("rows", rows, {
         target = checker.target_config_set,
         module_configs = checker.module_config_set,
     })
 end
---- @return boolean
+
+--- @return string? error string
 function checker.target_config_set(config_set)
-    return check_all(config_set, {
+    return check_all("config_set", config_set, {
         entities = function(x)
-            return check_array(x, function(ent)
+            return check_array("entities", x, function(ent)
                 -- TODO instead of failing with a missing prototype, maybe do a clean after and notify of the missing things?
-                return prototypes.entity[ent] ~= nil
+                if prototypes.entity[ent] == nil then return "entity not valid: " .. ent end
             end)
         end,
     })
 end
 
---- @return boolean
+--- @return string? error string
 function checker.module_config_set(config_set)
-    return check_all(config_set, {
+    return check_all("config_set", config_set, {
         configs = function(x)
-            return check_array(x, checker.module_config)
+            return check_array("configs", x, checker.module_config)
         end,
     })
 end
 
---- @return boolean
+--- @return string? error string
 function checker.module_config(config)
-    return check_all(config, {
+    return check_all("module_config", config, {
         module_list = function(x)
-            return check_array(x, checker.is_item_quality_pair)
+            return check_array("module_list", x, checker.is_module_definition)
         end,
     })
 end
 
---- @return boolean
-function checker.is_item_quality_pair(item)
-    return check_all(item, {
+--- @return string? error string
+function checker.is_module_definition(item)
+    if item == false then return end
+    return check_all("item_quality_pair", item, {
         name = function(x)
             -- TODO instead of failing with a missing prototype, maybe do a clean after and notify of the missing things?
-            return type(x) == "string" and prototypes.item[x] ~= nil
+            if type(x) ~= "string" then return "name is not a string" end
+            if prototypes.item[x] == nil then return "not a valid item: " .. x end
         end,
         quality = function(x)
-            return x == nil or type(x) == "string" and prototypes.quality[x] ~= nil
+            if x ~= nil then
+                if type(x) ~= "string" then return "quality is not a string" end
+                if prototypes.quality[x] == nil then return "not a valid quality: " .. x end
+            end
         end,
     })
 end
 
 
 --- @param string string
---- @return PresetConfig[]?
+--- @return PresetConfig[]|string
 --- @nodiscard
 function import_export.import_config(string)
     source = helpers.json_to_table(string)
     if type(source) ~= "table" then
-        return nil
+        return "did not parse into a table"
     end
 
     if not is_array(source) then
         source = { source }
     end
 
-    if not check_array(source, checker.preset) then return nil end
+    local err = check_array("", source, checker.preset)
 
-    return source
+    return err or source
 end
 
 return import_export
