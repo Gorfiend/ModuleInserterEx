@@ -69,6 +69,7 @@
 --- @field module_config ModuleConfig
 --- @field player LuaPlayer
 --- @field surface LuaSurface
+--- @field clear boolean If true, remove all current modules
 
 --- @class (exact) ModuleRowTags
 --- @field row_index int index of the row, 0 is the default row

@@ -115,6 +115,7 @@ local function on_player_selected_area(e)
                     module_config = table.deep_copy(modules),
                     player = player,
                     surface = surface,
+                    clear = false,
                 }
             end
             if messages then
@@ -146,6 +147,7 @@ local function on_player_alt_selected_area(e)
                 module_config = types.make_module_config(),
                 player = player,
                 surface = entity.surface,
+                clear = false,
             })
         end
         conditional_events()
@@ -180,7 +182,8 @@ local function on_player_reverse_selected_area(e)
                     entity = entity,
                     module_config = types.make_module_config(),
                     player = player,
-                    surface = surface
+                    surface = surface,
+                    clear = true,
                 }
             end
         end

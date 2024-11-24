@@ -151,21 +151,21 @@ function util.create_request_proxy(data)
     for i = 1, #module_inventory do
         local stack = module_inventory[i]
         local target = modules[i]
-        local need_to_remove = false
+        local need_to_remove = data.clear
         local need_to_add = not not target
         if stack.valid_for_read then
             -- If it's already the target module, then do nothing
             if target and stack.name == target.name and stack.quality.name == target.quality then
                 need_to_add = false
-            else
+            elseif need_to_add then
                 need_to_remove = true
             end
         end
 
-        if need_to_add then
+        if target and need_to_add then
             module_requests[i] = createBlueprintInsertPlan(target, i, inventory_define)
         end
-        if need_to_remove then
+        if need_to_remove and stack.valid_for_read then
             removal_plan[i] = createBlueprintInsertPlan({ name = stack.name, quality = stack.quality.name }, i, inventory_define)
         end
     end
