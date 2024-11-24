@@ -6,7 +6,7 @@
 --- @field _pdata {[int]:PlayerConfig}
 
 --- @class (exact) PlayerConfig
---- @field active_config PresetConfig One of the presets in saved_presets
+--- @field active_config PresetConfig One of the presets in saved_presets (reference to the same table)
 --- @field saved_presets SavedPresets
 --- @field gui PlayerGui
 --- @field naming PresetConfig? preset currently being renamed

@@ -184,13 +184,13 @@ mi_gui.templates = {
                     name = "rename_button",
                     style = "tool_button",
                     sprite = "utility/rename_icon",
+                    tooltip = "Rename this preset",
                     handler = mi_gui.handlers.preset.rename,
                 },
                 {
                     type = "textfield",
                     name = "rename_textfield",
                     icon_selector = true,
-                    tooltip = "Rename this preset",
                     visible = false,
                     style_mods = { width = PRESET_BUTTON_FIELD_WIDTH },
                     handler = { [defines.events.on_gui_confirmed] = mi_gui.handlers.preset.rename,}
@@ -743,6 +743,7 @@ function mi_gui.close(e)
         window.visible = false
     end
     pdata.naming = nil
+    mi_gui.update_presets(pdata)
     if e.player.opened == window then
         pdata.closing = true
         e.player.opened = nil
@@ -979,6 +980,7 @@ mi_gui.handlers = {
             -- Ensure it is normalized
             util.normalize_preset_config(pdata.active_config)
 
+            pdata.naming = nil -- Cancel any active rename
             mi_gui.update_contents(pdata)
             mi_gui.update_presets(pdata)
 
