@@ -1,6 +1,6 @@
 ---------------------------------------------------------------------------------------------------
 Version: 7.0.0
-Date: ????
+Date: 2024-11-25
   Changes:
     - Updated for Factorio 2.0
     - Major rewrite of the mod. Most things are similar, but significantly reworked.
