@@ -2,7 +2,7 @@ data:extend {
     {
         type = "custom-input",
         name = "get-module-inserter-ex",
-        key_sequence = "ALT + SHIFT + E",
+        key_sequence = "SHIFT + ALT + E",
         action = "lua",
         consuming = "none"
     },
