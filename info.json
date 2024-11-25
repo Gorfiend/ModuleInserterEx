@@ -8,6 +8,6 @@
   "description": "Mass insert/remove modules into machines with construction robots",
   "dependencies": ["flib >= 0.15.0"],
   "package":{
-    "ignore":[ "*.zip", "*.xcf" ]
+    "ignore":[ "*.zip", "*.xcf", "screenshots" ]
   }
 }
