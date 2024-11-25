@@ -4,7 +4,7 @@ data:extend({
         type = "int-setting",
         name = prefix .. "proxies-per-tick",
         setting_type = "runtime-global",
-        default_value = 50,
+        default_value = 20,
         minimum_value = 1,
         order = "a"
     },

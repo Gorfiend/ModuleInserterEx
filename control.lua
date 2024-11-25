@@ -12,6 +12,7 @@ local debugDump = lib.debugDump
 --- @type GlobalData
 storage = {} ---@diagnostic disable-line: missing-fields
 
+local control = {}
 
 --- @param e GuiEventData|EventData.on_mod_item_opened|EventData.CustomInputEvent|EventData.on_lua_shortcut
 --- @return MiEventInfo
@@ -22,10 +23,6 @@ local function make_event_info(e)
         pdata = storage._pdata[e.player_index],
     }
 end
-
-script.on_event("toggle-module-inserter-ex", function(e)
-    mi_gui.toggle(make_event_info(e))
-end)
 
 local function get_module_inserter(e)
     local player = game.get_player(e.player_index)
@@ -40,163 +37,183 @@ local function get_module_inserter(e)
     end
 end
 
-script.on_event("get-module-inserter-ex", get_module_inserter)
-script.on_event(defines.events.on_lua_shortcut, function(e)
-    if e.prototype_name == "miex-get-module-inserter" then
-        get_module_inserter(e)
-    elseif e.prototype_name == "miex-configure-module-inserter" then
-        mi_gui.toggle(make_event_info(e))
-    end
-end)
-
-local function delayed_creation(e)
-    local current = storage.to_create[e.tick]
-    if current then
-        for _, data in pairs(current) do
-            if data.entity and data.entity.valid then
-                util.create_request_proxy(data)
-            end
-        end
-        storage.to_create[e.tick] = nil
-        script.on_nth_tick(e.nth_tick, nil)
-    end
-end
-
-local function conditional_events(check)
+local function update_on_tick_listener(check)
     if check then
-        for tick, to_create in pairs(storage.to_create) do
-            for id, data in pairs(to_create) do
-                if not (data.entity and data.entity.valid) then
-                    to_create[id] = nil
-                end
-            end
-            if not next(to_create) then
-                storage.to_create[tick] = nil
-            end
-        end
+        -- TODO if config changed, need to revalidate all the delayed work...
+        -- But don't want to cancel everything if it's still good
     end
-    for tick in pairs(storage.to_create) do
-        script.on_nth_tick(tick, delayed_creation)
+    if storage.delayed_work[1] then -- TODO maybe a different check for if there's still work?
+        script.on_nth_tick(game.tick + 1, control.delayed_creation)
+        script.on_nth_tick(game.tick, nil)
+    else
+        script.on_nth_tick(nil)
     end
 end
 
----@param e EventData.on_player_selected_area
-local function on_player_selected_area(e)
-    local status, err = pcall(function()
-        local player_index = e.player_index
-        if e.item ~= "module-inserter-ex" or not player_index then return end
-        local player = game.get_player(player_index)
-        if not player then return end
-        local pdata = storage._pdata[player_index]
-        local active_preset = pdata.active_config
-        if not active_preset then
-            player.print({ "module-inserter-ex-config-not-set" })
-            return
-        end
-        local surface = player.surface
-        local delay = e.tick --[[@as uint]]
+function control.delayed_creation(e)
+    local work_data = storage.delayed_work[1]
+    if work_data then
+        local player = game.players[work_data.player_index]
         local max_proxies = settings.global["module-inserter-ex-proxies-per-tick"].value
-        local result_messages = {}
-        for i, entity in pairs(e.entities) do
+
+        local num = 0
+        for key, entity in pairs(work_data.entities) do
+            work_data.entities[key] = nil
+            if not entity.valid then
+                goto continue
+            end
             --skip the entity if it is a tile ghost
             if entity.type == "tile-ghost" then
                 goto continue
             end
+            num = num + 1
 
-            local modules, messages = util.find_modules_to_use_for_entity(entity, active_preset)
+            local is_ghost = entity.type == "entity-ghost"
 
-            if modules then
-                if (i % max_proxies == 0) then
-                    delay = delay + 1
-                end
-                if not storage.to_create[delay] then storage.to_create[delay] = {} end
-                storage.to_create[delay][ entity.unit_number --[[@as int]] ] = {
-                    entity = entity,
-                    module_config = table.deep_copy(modules),
-                    player = player,
-                    surface = surface,
-                    clear = false,
-                }
+            local ent_name
+            local ent_type
+            if is_ghost then
+                ent_name = entity["ghost_name"]
+                ent_type = entity["ghost_type"]
+            else
+                ent_name = entity["name"]
+                ent_type = entity["type"]
+            end
+
+            local set_to_use = work_data.entity_to_set_cache[ent_name]
+            if not set_to_use then
+                set_to_use = util.find_module_set_to_use_for_entity(ent_name, work_data.preset)
+                work_data.entity_to_set_cache[ent_name] = set_to_use
+            end
+            if set_to_use == true then
+                goto continue -- Don't set anything on this entity type
+            end
+
+            local recipe = ent_type == "assembling-machine" and entity.get_recipe()
+            local recipe_name = recipe and recipe.name or ""
+            local modules = work_data.entity_recipe_to_config_cache[ent_name .. "|" .. recipe_name]
+            local messages
+            if not modules then
+                modules, messages = util.choose_module_config_from_set(ent_name, recipe, set_to_use)
+                work_data.entity_recipe_to_config_cache[ent_name .. "|" .. recipe_name] = modules
+            end
+
+            if modules and modules ~= true then
+                util.create_request_proxy(entity, modules, false)
             end
             if messages then
                 for k, v in pairs(messages) do
-                    result_messages[k] = v
+                    work_data.result_messages[k] = v
                 end
+            end
+            if (num >= max_proxies) then
+                break
             end
             ::continue::
         end
-        for _, message in pairs(result_messages) do
-            player.print(message)
+        if not next(work_data.entities) then
+            for _, message in pairs(work_data.result_messages) do
+                if player then player.print(message) end
+            end
+            table.remove(storage.delayed_work, 1)
+            if __Profiler then remote.call("profiler", "dump") end
+            return
         end
-        conditional_events()
-    end)
-    if not status then
-        debugDump(err, true)
-        conditional_events(true)
     end
+    update_on_tick_listener()
+end
+
+---@param e EventData.on_player_selected_area
+local function on_player_selected_area(e)
+    local player_index = e.player_index
+    if e.item ~= "module-inserter-ex" or not player_index then return end
+    local player = game.get_player(player_index)
+    if not player then return end
+    local pdata = storage._pdata[player_index]
+    local preset = pdata.active_config
+    if not preset then
+        player.print({ "module-inserter-ex-config-not-set" })
+        return
+    end
+    preset = table.deep_copy(preset)
+
+    for _, row in pairs(preset.rows) do
+        for _, config in pairs(row.module_configs.configs) do
+            config.categories = {}
+            config.effects = {}
+            for _, module in pairs(config.module_list) do
+                if module then
+                    --- @type LuaItemPrototype
+                    local module_proto = prototypes.item[module.name]
+                    config.categories[module_proto.category] = true
+                    for cat, val in pairs(module_proto.module_effects) do
+                        if val > 0 then
+                            config.effects[cat] = module.name --[[@as string]]
+                        end
+                    end
+                end
+            end
+        end
+    end
+    for _, config in pairs(preset.default.configs) do
+        config.categories = {}
+        config.effects = {}
+        for _, module in pairs(config.module_list) do
+            if module then
+                --- @type LuaItemPrototype
+                local module_proto = prototypes.item[module.name]
+                config.categories[module_proto.category] = true
+                for cat, val in pairs(module_proto.module_effects) do
+                    if val > 0 then
+                        config.effects[cat] = module.name --[[@as string]]
+                    end
+                end
+            end
+        end
+    end
+
+    --- @type DelayedWorkData
+    local work_data = {
+        preset = preset,
+        entities = e.entities,
+        player_index = e.player_index,
+        clear = false,
+        result_messages = {},
+        entity_to_set_cache = {},
+        entity_recipe_to_config_cache = {},
+    }
+    table.insert(storage.delayed_work, work_data)
+    update_on_tick_listener()
 end
 
 ---@param e EventData.on_player_alt_selected_area
 local function on_player_alt_selected_area(e)
-    local status, err = pcall(function()
-        if not e.item == "module-inserter-ex" then return end
-        local player = game.players[e.player_index]
-        for _, entity in pairs(e.entities) do
-            util.create_request_proxy({
-                entity = entity,
-                module_config = types.make_module_config(),
-                player = player,
-                surface = entity.surface,
-                clear = false,
-            })
-        end
-        conditional_events()
-    end)
-    if not status then
-        debugDump(err, true)
-        conditional_events(true)
+    if not e.item == "module-inserter-ex" then return end
+    for _, entity in pairs(e.entities) do
+        util.create_request_proxy(entity, types.make_module_config(), false)
     end
 end
 
 ---@param e EventData.on_player_reverse_selected_area
 local function on_player_reverse_selected_area(e)
-    local status, err = pcall(function()
-        local player_index = e.player_index
-        if e.item ~= "module-inserter-ex" or not player_index then return end
+    local player_index = e.player_index
+    if e.item ~= "module-inserter-ex" or not player_index then return end
 
-        local player = game.get_player(player_index)
-        if not player then return end
-        local surface = player.surface
-        local delay = e.tick
-        local max_proxies = settings.global["module-inserter-ex-proxies-per-tick"].value
+    local player = game.get_player(player_index)
+    if not player then return end
 
-        for i, entity in pairs(e.entities) do
-            if entity.type == "entity-ghost" then
-                entity.insert_plan = {}
-            else
-                if (i % max_proxies == 0) then
-                    delay = delay + 1
-                end
-                if not storage.to_create[delay] then storage.to_create[delay] = {} end
-                storage.to_create[delay][entity.unit_number] = {
-                    entity = entity,
-                    module_config = types.make_module_config(),
-                    player = player,
-                    surface = surface,
-                    clear = true,
-                }
-            end
+    local empty_config = types.make_module_config()
+    for _, entity in pairs(e.entities) do
+        if entity.type == "entity-ghost" then
+            entity.insert_plan = {}
+        else
+            util.create_request_proxy(entity, empty_config, true)
         end
-        conditional_events()
-    end)
-    if not status then
-        debugDump(err, true)
-        conditional_events(true)
     end
 end
 
 local function se_grounded_entity(name)
-    local result = name:sub(-9) == "-grounded" -- -#"grounded"
+    local result = name:sub(-9) == "-grounded"
     return result
 end
 
@@ -261,7 +278,7 @@ local function remove_invalid_items()
 end
 
 local function init_global()
-    storage.to_create = storage.to_create or {}
+    storage.delayed_work = storage.delayed_work or {}
     storage.name_to_slot_count = storage.name_to_slot_count or {}
     storage._pdata = storage._pdata or {}
 end
@@ -293,7 +310,7 @@ script.on_init(function()
 end)
 
 script.on_load(function()
-    conditional_events()
+    update_on_tick_listener()
 end)
 
 local migrations = {
@@ -333,9 +350,20 @@ script.on_configuration_changed(function(e)
         end
     end
     remove_invalid_items()
-    conditional_events(true)
+    update_on_tick_listener(true)
 end)
 
+script.on_event("toggle-module-inserter-ex", function(e)
+    mi_gui.toggle(make_event_info(e))
+end)
+script.on_event("get-module-inserter-ex", get_module_inserter)
+script.on_event(defines.events.on_lua_shortcut, function(e)
+    if e.prototype_name == "miex-get-module-inserter" then
+        get_module_inserter(e)
+    elseif e.prototype_name == "miex-configure-module-inserter" then
+        mi_gui.toggle(make_event_info(e))
+    end
+end)
 script.on_event(defines.events.on_player_selected_area, on_player_selected_area)
 script.on_event(defines.events.on_player_alt_selected_area, on_player_alt_selected_area)
 script.on_event(defines.events.on_player_reverse_selected_area, on_player_reverse_selected_area)

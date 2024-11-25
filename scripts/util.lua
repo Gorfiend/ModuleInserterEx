@@ -34,18 +34,17 @@ end
 --- @return boolean, LocalisedString True if valid, else false and a localised error message
 function util.entity_valid_for_modules(entity, module_config)
     local entity_proto = prototypes.entity[entity]
-    for _, module_info in pairs(module_config.module_list) do
-        if module_info then
-            local proto = prototypes.item[module_info.name]
-            local itemEffects = proto.module_effects
-            if itemEffects then
-                for name, effect in pairs(itemEffects) do
-                    if effect > 0 then
-                        if not entity_proto.allowed_effects[name] then
-                            return false, { "inventory-restriction.cant-insert-module", proto.localised_name, entity_proto.localised_name }
-                        end
-                    end
-                end
+    if entity_proto.allowed_module_categories then
+        for category, module_name in pairs(module_config.categories) do
+            if not entity_proto.allowed_module_categories[category] then
+                return false, { "inventory-restriction.cant-insert-module", prototypes.item[module_name].localised_name, entity_proto.localised_name } -- TODO using the category instead of the localised module name
+            end
+        end
+    end
+    if entity_proto.allowed_effects then
+        for effect, module_name in pairs(module_config.effects) do
+            if not entity_proto.allowed_effects[effect] then
+                return false, { "inventory-restriction.cant-insert-module", prototypes.item[module_name].localised_name, entity_proto.localised_name } -- TODO using the category instead of the localised module name
             end
         end
     end
@@ -105,10 +104,11 @@ local function createBlueprintInsertPlan(module, stack_index, inventory_define)
 end
 
 --- Process data to create logistic requests to insert/remove modules
---- @param data ToCreateData
-function util.create_request_proxy(data)
-    local entity = data.entity
-    local modules = data.module_config.module_list
+--- @param entity LuaEntity -- Already checked to be valid
+--- @param module_config ModuleConfig
+--- @param clear boolean If true, remove all current modules
+function util.create_request_proxy(entity, module_config, clear)
+    local modules = module_config.module_list
 
     if entity.type == "entity-ghost" then
         local inventory_define = util.inventory_defines_map[entity.ghost_type]
@@ -130,16 +130,16 @@ function util.create_request_proxy(data)
 
     local inventory_define = util.inventory_defines_map[entity.type]
     if not inventory_define then
-        data.player.print("ERROR: Unknown inventory type: " .. entity.type)
+        game.print("ERROR [ModuleInserterEx]: Unknown inventory type: " .. entity.type)
         return
     end
 
     -- Remove any existing requests
-    local proxies = entity.surface.find_entities_filtered {
+    local proxies = entity.surface.find_entities_filtered({
         name = "item-request-proxy",
         force = entity.force,
         position = entity.position
-    }
+    })
     for _, proxy in pairs(proxies) do
         if proxy.proxy_target == entity then
             proxy.destroy({ raise_destroy = true })
@@ -151,7 +151,7 @@ function util.create_request_proxy(data)
     for i = 1, #module_inventory do
         local stack = module_inventory[i]
         local target = modules[i]
-        local need_to_remove = data.clear
+        local need_to_remove = clear
         local need_to_add = not not target
         if stack.valid_for_read then
             -- If it's already the target module, then do nothing
@@ -186,7 +186,7 @@ function util.create_request_proxy(data)
         create_info.removal_plan = removal_plan
     end
 
-    data.surface.create_entity(create_info)
+    entity.surface.create_entity(create_info)
 end
 
 --- @param entity_name string?
@@ -290,64 +290,50 @@ end
 --- @param modules ModuleConfig
 --- @return true|false, LocalisedString
 function util.modules_allowed(recipe, modules)
-    -- TODO really not sure what the checks here should be
-    -- TODO also add the entity in this check?
-    -- TODO may want to cache this result?
     if recipe.prototype.allowed_module_categories then
-        for _, module in pairs(modules.module_list) do
-            if module then
-                local category = prototypes.item[module.name].category
-                if not recipe.prototype.allowed_module_categories[category] then
-                    return false, { "item-limitation." .. category .. "-effect"}
-                end
+        for category, _ in pairs(modules.categories) do
+            if not recipe.prototype.allowed_module_categories[category] then
+                return false, { "item-limitation." .. category .. "-effect"}
             end
         end
     end
     if recipe.prototype.allowed_effects then
-        for _, module in pairs(modules.module_list) do
-            if module then
-                for effect_name, effect_num in pairs(prototypes.item[module.name].module_effects) do
-                    if effect_num > 0 and not recipe.prototype.allowed_effects[effect_name] then
-                        local category = prototypes.item[module.name].category
-                        return false, { "item-limitation." .. category .. "-effect"}
-                    end
-                end
+        for effect, _ in pairs(modules.effects) do
+            if not recipe.prototype.allowed_effects[effect] then
+                return false, { "item-limitation." .. effect .. "-effect"}
             end
         end
     end
     return true
 end
 
---- @param entity LuaEntity
+--- @param name string
 --- @param preset PresetConfig
---- @return ModuleConfig?, {[LocalisedString]: LocalisedString}? Module config to use for this entity, or nil if none, with table of error messages
-function util.find_modules_to_use_for_entity(entity, preset)
-    local name = util.maybe_ghost_property(entity, "name")
+--- @return ModuleConfigSet|true Module config set to use for this entity, or nil if none
+function util.find_module_set_to_use_for_entity(name, preset)
     for _, row in pairs(preset.rows) do
         for _, target in ipairs(row.target.entities) do
             if name == target then
-                return util.choose_module_config_from_set(entity, row.module_configs)
+                return row.module_configs
             end
         end
     end
     if preset.use_default then
-        return util.choose_module_config_from_set(entity, preset.default)
+        return preset.default
     end
+    return true
 end
 
---- @param entity LuaEntity
+--- @param name string
+--- @param recipe false|LuaRecipe?
 --- @param module_config_set ModuleConfigSet
---- @return ModuleConfig?, {[LocalisedString]: LocalisedString}? Module config to use for this entity, or nil if none, with table of error messages
-function util.choose_module_config_from_set(entity, module_config_set)
-    ent_type = util.maybe_ghost_property(entity, "type")
-    ent_name = util.maybe_ghost_property(entity, "name")
-
-    local recipe = ent_type == "assembling-machine" and entity.get_recipe()
+--- @return ModuleConfig|true, {[LocalisedString]: LocalisedString}? Module config to use for this entity, or nil if none, with table of error messages
+function util.choose_module_config_from_set(name, recipe, module_config_set)
     --- @type ModuleConfig?
     local config_to_use = nil
     local messages = {}
     for _, module_config in pairs(module_config_set.configs) do
-        local valid, message = util.entity_valid_for_modules(ent_name, module_config)
+        local valid, message = util.entity_valid_for_modules(name, module_config)
         if valid then
             if recipe then
                 valid, message = util.modules_allowed(recipe, module_config)
@@ -367,18 +353,20 @@ function util.choose_module_config_from_set(entity, module_config_set)
     end
     if config_to_use then
         if not util.module_config_has_entries(config_to_use) then
-            return -- don't use anything, and no errors
+            return true -- don't use anything, and no errors
         end
         return config_to_use
     else
-        return nil, messages
+        return true, messages
     end
 end
 
-function util.maybe_ghost_property(entity, field)
-    local is_ghost = entity.type == "entity-ghost"
-    if is_ghost then return entity["ghost_"..field] end
-    return entity[field]
+--- @param entity LuaEntity
+--- @param is_ghost boolean
+--- @param field string
+--- @param ghost_field string
+function util.maybe_ghost_property(entity, is_ghost, field, ghost_field)
+    return is_ghost and entity[ghost_field] or entity[field]
 end
 
 return util

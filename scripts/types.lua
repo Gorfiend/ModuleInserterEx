@@ -1,5 +1,5 @@
 --- @class (exact) GlobalData
---- @field to_create {[int]:{[int]:ToCreateData}}
+--- @field delayed_work DelayedWorkData[]
 --- @field name_to_slot_count {[string]:int} Name of all entities mapped to their module slot count
 --- @field max_slot_count int Number of slots the entity with the most has (used for default config slot count)
 --- @field module_entities string[] all entities that have valid module slots
@@ -57,19 +57,22 @@
 
 --- @class (exact) ModuleConfig
 --- @field module_list (false|ItemIDAndQualityIDPair)[] array of module slot indexes to the module in that slot (or false if no module)
-
+--- @field categories {[string]: string} category to module prototype name of modules contained in the config (only populated when in DelayedWorkData)
+--- @field effects {[string]: string} positive effects to module prototype name of modules contained in the config (only populated when in DelayedWorkData)
 
 --- @class (exact) MiEventInfo
 --- @field event flib.GuiEventData
 --- @field player LuaPlayer
 --- @field pdata PlayerConfig
 
---- @class (exact) ToCreateData
---- @field entity LuaEntity
---- @field module_config ModuleConfig
---- @field player LuaPlayer
---- @field surface LuaSurface
+--- @class (exact) DelayedWorkData
+--- @field preset PresetConfig
+--- @field entities LuaEntity[]
+--- @field player_index int
 --- @field clear boolean If true, remove all current modules
+--- @field result_messages {[LocalisedString]: LocalisedString}
+--- @field entity_to_set_cache {[string]: ModuleConfigSet|true}
+--- @field entity_recipe_to_config_cache {[string]: ModuleConfig|true}
 
 --- @class (exact) ModuleRowTags
 --- @field row_index int index of the row, 0 is the default row
@@ -137,6 +140,8 @@ function types.make_module_config()
     --- @type ModuleConfig
     return {
         module_list = {},
+        categories = {},
+        effects = {},
     }
 end
 

@@ -570,7 +570,7 @@ function mi_gui.update_modules(player, gui_module_row, slots, config_set, index)
         child.elem_value = module_list[i] or nil
         local tooltip = module_list[i] and prototypes.item[module_list[i].name].localised_name or { "module-inserter-ex-choose-module" }
         if i == 1 and player.mod_settings["module-inserter-ex-fill-all"].value then
-            tooltip = { "", tooltip, { "module-inserter-ex-choose-module-fill-all-tooltip" } }
+            tooltip = { "", tooltip, "\n", { "module-inserter-ex-choose-module-fill-all-tooltip" } }
         end
         child.tooltip = tooltip
     end
