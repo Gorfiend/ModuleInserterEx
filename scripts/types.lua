@@ -72,7 +72,7 @@
 --- @field clear boolean If true, remove all current modules
 --- @field result_messages {[LocalisedString]: LocalisedString}
 --- @field entity_to_set_cache {[string]: ModuleConfigSet|true}
---- @field entity_recipe_to_config_cache {[string]: ModuleConfig|true}
+--- @field entity_recipe_to_config_cache {[string]: ModuleConfig|false}
 
 --- @class (exact) ModuleRowTags
 --- @field row_index int index of the row, 0 is the default row

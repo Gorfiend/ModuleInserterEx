@@ -157,6 +157,7 @@ function util.create_request_proxy(entity, module_config, clear)
             -- If it's already the target module, then do nothing
             if target and stack.name == target.name and stack.quality.name == target.quality then
                 need_to_add = false
+                need_to_remove = false
             elseif need_to_add then
                 need_to_remove = true
             end
@@ -327,7 +328,7 @@ end
 --- @param name string
 --- @param recipe false|LuaRecipe?
 --- @param module_config_set ModuleConfigSet
---- @return ModuleConfig|true, {[LocalisedString]: LocalisedString}? Module config to use for this entity, or nil if none, with table of error messages
+--- @return ModuleConfig|false, {[LocalisedString]: LocalisedString}? Module config to use for this entity, or nil if none, with table of error messages
 function util.choose_module_config_from_set(name, recipe, module_config_set)
     --- @type ModuleConfig?
     local config_to_use = nil
@@ -352,12 +353,9 @@ function util.choose_module_config_from_set(name, recipe, module_config_set)
         end
     end
     if config_to_use then
-        if not util.module_config_has_entries(config_to_use) then
-            return true -- don't use anything, and no errors
-        end
         return config_to_use
     else
-        return true, messages
+        return false, messages
     end
 end
 

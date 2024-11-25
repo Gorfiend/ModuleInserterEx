@@ -98,8 +98,8 @@ function control.delayed_creation(e)
                 work_data.entity_recipe_to_config_cache[ent_name .. "|" .. recipe_name] = modules
             end
 
-            if modules and modules ~= true then
-                util.create_request_proxy(entity, modules, false)
+            if modules then
+                util.create_request_proxy(entity, modules, true)
             end
             if messages then
                 for k, v in pairs(messages) do
@@ -189,8 +189,9 @@ end
 ---@param e EventData.on_player_alt_selected_area
 local function on_player_alt_selected_area(e)
     if not e.item == "module-inserter-ex" then return end
+    local empty_config = types.make_module_config()
     for _, entity in pairs(e.entities) do
-        util.create_request_proxy(entity, types.make_module_config(), false)
+        util.create_request_proxy(entity, empty_config, false)
     end
 end
 
