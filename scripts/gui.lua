@@ -910,8 +910,7 @@ mi_gui.handlers = {
                     module_config.module_list[i] = module_config.module_list[slot]
                 end
             end
-
-            util.normalize_module_set(slot_count, module_config_set)
+            util.normalize_module_config(slot_count, module_config)
 
             if not is_default_config then
                 mi_gui.update_module_set(e.player, module_button_tags.row_index, config_rows.children[module_button_tags.row_index].module_set, slot_count, module_config_set)
@@ -1075,11 +1074,11 @@ mi_gui.handlers = {
             local text_box = pdata.gui.import.textbox
             local configs = import_export.import_config(text_box.text)
             if type(configs) == "string" then
-                -- TODO maybe add a more detailed failure message
                 player.print({ "failed-to-import-string", configs })
                 return
             end
             for _, preset in ipairs(configs) do
+                util.normalize_preset_config(preset)
                 mi_gui.add_preset(e.player, e.pdata, false, preset)
             end
             mi_gui.handlers.import.close_button(e)

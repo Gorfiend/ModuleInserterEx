@@ -34,17 +34,17 @@ end
 --- @return boolean, LocalisedString True if valid, else false and a localised error message
 function util.entity_valid_for_modules(entity, module_config)
     local entity_proto = prototypes.entity[entity]
-    if entity_proto.allowed_module_categories then
-        for category, module_name in pairs(module_config.categories) do
-            if not entity_proto.allowed_module_categories[category] then
-                return false, { "inventory-restriction.cant-insert-module", prototypes.item[module_name].localised_name, entity_proto.localised_name } -- TODO using the category instead of the localised module name
-            end
-        end
-    end
     if entity_proto.allowed_effects then
         for effect, module_name in pairs(module_config.effects) do
             if not entity_proto.allowed_effects[effect] then
-                return false, { "inventory-restriction.cant-insert-module", prototypes.item[module_name].localised_name, entity_proto.localised_name } -- TODO using the category instead of the localised module name
+                return false, { "inventory-restriction.cant-insert-module", prototypes.item[module_name].localised_name, entity_proto.localised_name }
+            end
+        end
+    end
+    if entity_proto.allowed_module_categories then
+        for category, module_name in pairs(module_config.categories) do
+            if not entity_proto.allowed_module_categories[category] then
+                return false, { "inventory-restriction.cant-insert-module", prototypes.item[module_name].localised_name, entity_proto.localised_name }
             end
         end
     end
@@ -75,7 +75,10 @@ function util.module_valid_for_config(module, target_config)
             if effect > 0 then
                 for _, entity in pairs(target_config.entities) do
                     local entity_proto = prototypes.entity[entity]
-                    if not entity_proto.allowed_effects[name] then
+                    if entity_proto.allowed_effects and not entity_proto.allowed_effects[name] then
+                        return false, { "inventory-restriction.cant-insert-module", proto.localised_name, entity_proto.localised_name }
+                    end
+                    if entity_proto.allowed_module_categories and not entity_proto.allowed_module_categories[proto.category] then
                         return false, { "inventory-restriction.cant-insert-module", proto.localised_name, entity_proto.localised_name }
                     end
                 end
@@ -230,22 +233,44 @@ end
 
 --- Resize the module lists if needed
 --- @param slots int Number of slots in each row
+--- @param module_config ModuleConfig
+function util.normalize_module_config(slots, module_config)
+    -- Clear slots that are not used anymore
+    for slot_index = slots + 1, storage.max_slot_count do
+        module_config.module_list[slot_index] = nil
+    end
+    -- Make sure it maps each slot
+    for slot_index = 1, slots do
+        if not module_config.module_list[slot_index] then
+            module_config.module_list[slot_index] = false
+        end
+    end
+
+    -- Rebuild category/effect mapping
+    module_config.categories = {}
+    module_config.effects = {}
+    for _, module in pairs(module_config.module_list) do
+        if module then
+            --- @type LuaItemPrototype
+            local module_proto = prototypes.item[module.name]
+            module_config.categories[module_proto.category] = true
+            for cat, val in pairs(module_proto.module_effects) do
+                if val > 0 then
+                    module_config.effects[cat] = module.name --[[@as string]]
+                end
+            end
+        end
+    end
+end
+
+--- Resize the module lists if needed
+--- @param slots int Number of slots in each row
 --- @param module_set ModuleConfigSet
 function util.normalize_module_set(slots, module_set)
     -- Remove all empty configs
     local index = 1
     while index <= #module_set.configs do
-        local module_config = module_set.configs[index]
-        -- Clear slots that are not used anymore
-        for slot_index = slots + 1, storage.max_slot_count do
-            module_config.module_list[slot_index] = nil
-        end
-        -- Make sure it maps each slot
-        for slot_index = 1, slots do
-            if not module_config.module_list[slot_index] then
-                module_config.module_list[slot_index] = false
-            end
-        end
+        util.normalize_module_config(slots, module_set.configs[index])
         index = index + 1
     end
 end
@@ -291,17 +316,17 @@ end
 --- @param modules ModuleConfig
 --- @return true|false, LocalisedString
 function util.modules_allowed(recipe, modules)
-    if recipe.prototype.allowed_module_categories then
-        for category, _ in pairs(modules.categories) do
-            if not recipe.prototype.allowed_module_categories[category] then
-                return false, { "item-limitation." .. category .. "-effect"}
-            end
-        end
-    end
     if recipe.prototype.allowed_effects then
         for effect, _ in pairs(modules.effects) do
             if not recipe.prototype.allowed_effects[effect] then
                 return false, { "item-limitation." .. effect .. "-effect"}
+            end
+        end
+    end
+    if recipe.prototype.allowed_module_categories then
+        for category, _ in pairs(modules.categories) do
+            if not recipe.prototype.allowed_module_categories[category] then
+                return false, { "item-limitation." .. category .. "-effect"}
             end
         end
     end

@@ -42,7 +42,7 @@ local function update_on_tick_listener(check)
         -- TODO if config changed, need to revalidate all the delayed work...
         -- But don't want to cancel everything if it's still good
     end
-    if storage.delayed_work[1] then -- TODO maybe a different check for if there's still work?
+    if storage.delayed_work[1] then
         script.on_nth_tick(game.tick + 1, control.delayed_creation)
         script.on_nth_tick(game.tick, nil)
     else
@@ -136,41 +136,6 @@ local function on_player_selected_area(e)
         return
     end
     preset = table.deep_copy(preset)
-
-    for _, row in pairs(preset.rows) do
-        for _, config in pairs(row.module_configs.configs) do
-            config.categories = {}
-            config.effects = {}
-            for _, module in pairs(config.module_list) do
-                if module then
-                    --- @type LuaItemPrototype
-                    local module_proto = prototypes.item[module.name]
-                    config.categories[module_proto.category] = true
-                    for cat, val in pairs(module_proto.module_effects) do
-                        if val > 0 then
-                            config.effects[cat] = module.name --[[@as string]]
-                        end
-                    end
-                end
-            end
-        end
-    end
-    for _, config in pairs(preset.default.configs) do
-        config.categories = {}
-        config.effects = {}
-        for _, module in pairs(config.module_list) do
-            if module then
-                --- @type LuaItemPrototype
-                local module_proto = prototypes.item[module.name]
-                config.categories[module_proto.category] = true
-                for cat, val in pairs(module_proto.module_effects) do
-                    if val > 0 then
-                        config.effects[cat] = module.name --[[@as string]]
-                    end
-                end
-            end
-        end
-    end
 
     --- @type DelayedWorkData
     local work_data = {

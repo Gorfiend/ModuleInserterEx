@@ -57,8 +57,8 @@
 
 --- @class (exact) ModuleConfig
 --- @field module_list (false|ItemIDAndQualityIDPair)[] array of module slot indexes to the module in that slot (or false if no module)
---- @field categories {[string]: string} category to module prototype name of modules contained in the config (only populated when in DelayedWorkData)
---- @field effects {[string]: string} positive effects to module prototype name of modules contained in the config (only populated when in DelayedWorkData)
+--- @field categories {[string]: string} category to module prototype name of modules contained in the config
+--- @field effects {[string]: string} positive effects to module prototype name of modules contained in the config
 
 --- @class (exact) MiEventInfo
 --- @field event flib.GuiEventData
