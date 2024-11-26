@@ -4,6 +4,7 @@
 --- @field max_slot_count int Number of slots the entity with the most has (used for default config slot count)
 --- @field module_entities string[] all entities that have valid module slots
 --- @field _pdata {[int]:PlayerConfig}
+--- @field nth_tick_registered int? The tick that the on_nth_tick delayed_creation listener is registered for, or nil if not registered
 
 --- @class (exact) PlayerConfig
 --- @field active_config PresetConfig One of the presets in saved_presets (reference to the same table)

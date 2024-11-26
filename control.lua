@@ -42,11 +42,15 @@ local function update_on_tick_listener(check)
         -- TODO if config changed, need to revalidate all the delayed work...
         -- But don't want to cancel everything if it's still good
     end
+
+    -- Unregister any previous listener
+    script.on_nth_tick(nil)
+    storage.nth_tick_registered = nil
     if storage.delayed_work[1] then
+        -- Register the handler for the next tick if there is work remaining
+        -- Also keep track of this in storage, so we can restore it in on_load (which doesn't have access to the `game` object)
+        storage.nth_tick_registered = game.tick + 1
         script.on_nth_tick(game.tick + 1, control.delayed_creation)
-        script.on_nth_tick(game.tick, nil)
-    else
-        script.on_nth_tick(nil)
     end
 end
 
@@ -116,8 +120,6 @@ function control.delayed_creation(e)
                 if player then player.print(message) end
             end
             table.remove(storage.delayed_work, 1)
-            if __Profiler then remote.call("profiler", "dump") end
-            return
         end
     end
     update_on_tick_listener()
@@ -276,9 +278,13 @@ script.on_init(function()
 end)
 
 script.on_load(function()
-    update_on_tick_listener()
+    if storage.nth_tick_registered then
+        script.on_nth_tick(storage.nth_tick_registered, control.delayed_creation)
+    end
 end)
 
+
+--- @type MigrationsTable
 local migrations = {
     ["7.0.0"] = function()
         -- Major update breaking compatibility - remove all storage and existing gui
@@ -304,7 +310,7 @@ local migrations = {
         create_lookup_tables()
         init_global()
         init_players()
-    end
+    end,
 }
 
 script.on_configuration_changed(function(e)
