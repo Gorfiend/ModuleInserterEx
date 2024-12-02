@@ -77,11 +77,11 @@ function control.delayed_creation(e)
             local ent_name
             local ent_type
             if is_ghost then
-                ent_name = entity["ghost_name"]
-                ent_type = entity["ghost_type"]
+                ent_name = entity.ghost_name
+                ent_type = entity.ghost_type
             else
-                ent_name = entity["name"]
-                ent_type = entity["type"]
+                ent_name = entity.name
+                ent_type = entity.type
             end
 
             local set_to_use = work_data.entity_to_set_cache[ent_name]
@@ -125,6 +125,22 @@ function control.delayed_creation(e)
     update_on_tick_listener()
 end
 
+--- Adds the given data to the delayed work queue
+local function add_work_data(player_index, preset, entities)
+    --- @type DelayedWorkData
+    local work_data = {
+        preset = preset,
+        entities = entities,
+        player_index = player_index,
+        clear = false,
+        result_messages = {},
+        entity_to_set_cache = {},
+        entity_recipe_to_config_cache = {},
+    }
+    table.insert(storage.delayed_work, work_data)
+    update_on_tick_listener()
+end
+
 ---@param e EventData.on_player_selected_area
 local function on_player_selected_area(e)
     local player_index = e.player_index
@@ -139,18 +155,7 @@ local function on_player_selected_area(e)
     end
     preset = table.deep_copy(preset)
 
-    --- @type DelayedWorkData
-    local work_data = {
-        preset = preset,
-        entities = e.entities,
-        player_index = e.player_index,
-        clear = false,
-        result_messages = {},
-        entity_to_set_cache = {},
-        entity_recipe_to_config_cache = {},
-    }
-    table.insert(storage.delayed_work, work_data)
-    update_on_tick_listener()
+    add_work_data(e.player_index, preset, e.entities)
 end
 
 ---@param e EventData.on_player_alt_selected_area
@@ -364,3 +369,68 @@ end)
 script.on_event(defines.events.on_player_removed, function(e)
     storage._pdata[e.player_index] = nil
 end)
+
+remote.add_interface("ModuleInserterEx", {
+
+    --- @param player int|LuaPlayer player index or LuaPlayer to source the config from
+    --- @param entity string|LuaEntity Entity name or LuaEntity to get the config for
+    --- @return (false|ItemIDAndQualityIDPair)[]? modules nil no config for the given entity, or an array the same length as modules slots in the config,
+    ---         with each index either an ItemIDAndQualityIDPair of the module to place there or false to leave that slot empty
+    get_modules_for_entity = function(player, entity)
+        if type(player) == "number" then player = game.players[player] end
+        if not player or not player.valid then return end
+
+        local recipe = nil
+        local ent_name
+        if type(entity) == "string" then
+            ent_name = entity
+        else
+            if not entity.valid then return end
+            ent_name = entity.ghost_name or entity.name
+            local ent_type = entity.ghost_type or entity.type
+            recipe = ent_type == "assembling-machine" and entity.get_recipe()
+        end
+
+        local set_to_use = util.find_module_set_to_use_for_entity(ent_name, storage._pdata[player.index].active_config)
+        if set_to_use == true then return end -- Don't set anything on this entity type
+        module_config, messages = util.choose_module_config_from_set(ent_name, recipe, set_to_use)
+        if not module_config then return end
+
+        local module_list = module_config and module_config.module_list
+        local module_count = prototypes.entity[ent_name].module_inventory_size
+        while #module_list > module_count do
+            table.remove(module_list)
+        end
+        return module_config and module_config.module_list or nil
+    end,
+
+    --- @param player int|LuaPlayer player index or LuaPlayer to source the config from
+    --- @param entity_list LuaEntity[] Array of entities to apply modules to
+    apply_module_config_to_entities = function (player, entity_list)
+        if type(player) == "number" then player = game.players[player] end
+        if not player or not player.valid then return end
+
+        -- Filter the entities we get to only valid ones
+        local valid_types = {
+            ["mining-drill"] = true,
+            ["furnace"] = true,
+            ["assembling-machine"] = true,
+            ["lab"] = true,
+            ["beacon"] = true,
+            ["rocket-silo"] = true,
+        }
+        for key, entity in pairs(entity_list) do
+            if not entity or not entity.valid then
+                entity_list[key] = nil
+            else
+                local type = entity.ghost_type or entity.type
+                if not valid_types[type] then
+                    entity_list[key] = nil
+                end
+            end
+        end
+
+        add_work_data(player.index, storage._pdata[player.index].active_config, entity_list)
+    end
+
+})
