@@ -1,6 +1,6 @@
 ---------------------------------------------------------------------------------------------------
 Version: 7.0.2
-Date: ????
+Date: 2024-12-02
   Features:
     - Add remote interfaces for other mods to get the module config for an entity, or to activate this mod to update modules in a list of entities
 ---------------------------------------------------------------------------------------------------
