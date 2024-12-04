@@ -5,8 +5,9 @@ local import_export = require("scripts.import-export")
 local types = require("scripts.types")
 local util = require("scripts.util")
 
-local TARGET_SECTION_WIDTH = 170
+local TARGET_SECTION_WIDTH = 180
 local PRESET_BUTTON_FIELD_WIDTH = 200
+local MAIN_SCROLL_WIDTH = 440 + TARGET_SECTION_WIDTH
 
 local mi_gui = {}
 mi_gui.templates = {
@@ -155,7 +156,7 @@ mi_gui.templates = {
             style = "flib_shallow_frame_in_shallow_frame",
             children = {
                 mi_gui.templates.target_section(index),
-                { type = "empty-widget", style_mods = { width = 6 } },
+                { type = "empty-widget", style_mods = { width = 16 } },
                 mi_gui.templates.module_set("module_set"),
             }
         }
@@ -378,7 +379,7 @@ function mi_gui.create(player_index)
                                 type = "scroll-pane",
                                 name = "main_scroll",
                                 style = "flib_naked_scroll_pane_no_padding",
-                                style_mods = { minimal_width = 610, }, ---@diagnostic disable-line: missing-fields
+                                style_mods = { minimal_width = MAIN_SCROLL_WIDTH, }, ---@diagnostic disable-line: missing-fields
                                 vertical_scroll_policy = "always",
                                 children = {
                                     {
