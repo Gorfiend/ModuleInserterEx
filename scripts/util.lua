@@ -70,15 +70,15 @@ end
 function util.module_valid_for_config(module, target_config)
     local proto = prototypes.item[module]
     local itemEffects = proto.module_effects
-    if itemEffects then
-        for name, effect in pairs(itemEffects) do
-            if effect > 0 then
-                for _, entity in pairs(target_config.entities) do
-                    local entity_proto = prototypes.entity[entity]
+    for _, entity in pairs(target_config.entities) do
+        local entity_proto = prototypes.entity[entity]
+        if entity_proto.allowed_module_categories and not entity_proto.allowed_module_categories[proto.category] then
+            return false, { "inventory-restriction.cant-insert-module", proto.localised_name, entity_proto.localised_name }
+        end
+        if itemEffects then
+            for name, effect in pairs(itemEffects) do
+                if effect > 0 then
                     if entity_proto.allowed_effects and not entity_proto.allowed_effects[name] then
-                        return false, { "inventory-restriction.cant-insert-module", proto.localised_name, entity_proto.localised_name }
-                    end
-                    if entity_proto.allowed_module_categories and not entity_proto.allowed_module_categories[proto.category] then
                         return false, { "inventory-restriction.cant-insert-module", proto.localised_name, entity_proto.localised_name }
                     end
                 end
@@ -253,7 +253,7 @@ function util.normalize_module_config(slots, module_config)
         if module then
             --- @type LuaItemPrototype
             local module_proto = prototypes.item[module.name]
-            module_config.categories[module_proto.category] = true
+            module_config.categories[module_proto.category] = module.name
             for cat, val in pairs(module_proto.module_effects) do
                 if val > 0 then
                     module_config.effects[cat] = module.name --[[@as string]]

@@ -70,7 +70,6 @@ function control.delayed_creation(e)
             if entity.type == "tile-ghost" then
                 goto continue
             end
-            num = num + 1
 
             local is_ghost = entity.type == "entity-ghost"
 
@@ -82,6 +81,11 @@ function control.delayed_creation(e)
             else
                 ent_name = entity.name
                 ent_type = entity.type
+            end
+
+            if not storage.name_to_slot_count[ent_name] then
+                -- No module in this entity (e.g. stone furnace)
+                goto continue
             end
 
             local set_to_use = work_data.entity_to_set_cache[ent_name]
@@ -110,6 +114,7 @@ function control.delayed_creation(e)
                     work_data.result_messages[k] = v
                 end
             end
+            num = num + 1
             if (num >= max_proxies) then
                 break
             end
@@ -316,6 +321,15 @@ local migrations = {
         init_global()
         init_players()
     end,
+    ["7.0.4"] = function()
+        -- Fix up the category definitions
+        for _, player in pairs(game.players) do
+            local pdata = storage._pdata[player.index]
+            for _, preset in pairs(pdata.saved_presets) do
+                util.normalize_preset_config(preset)
+            end
+        end
+    end
 }
 
 script.on_configuration_changed(function(e)
