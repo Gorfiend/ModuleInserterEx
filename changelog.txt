@@ -1,6 +1,6 @@
 ---------------------------------------------------------------------------------------------------
 Version: 7.1.0
-Date: ????
+Date: 2024-12-12
   Features:
     - Add custom hotkeys to cycle between presets (default mapped to Shift+Alt+Mouse Wheel). Only active with the inserter in hand or the config window open.
   Bugfixes:
