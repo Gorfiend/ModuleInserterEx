@@ -6,9 +6,6 @@ local mi_gui = require("scripts.gui")
 local types = require("scripts.types")
 local util = require("scripts.util")
 
-local lib = require("__ModuleInserterEx__/lib_control")
-local debugDump = lib.debugDump
-
 --- @type GlobalData
 storage = {} ---@diagnostic disable-line: missing-fields
 
