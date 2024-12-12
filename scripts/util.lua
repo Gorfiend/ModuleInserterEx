@@ -254,10 +254,12 @@ function util.normalize_module_config(slots, module_config)
             local name = module.name
             ---@cast name string
             local module_proto = prototypes.item[name]
-            module_config.categories[module_proto.category] = name
-            for cat, val in pairs(module_proto.module_effects) do
-                if val > 0 then
-                    module_config.effects[cat] = name
+            if module_proto then
+                module_config.categories[module_proto.category] = name
+                for cat, val in pairs(module_proto.module_effects) do
+                    if val > 0 then
+                        module_config.effects[cat] = name
+                    end
                 end
             end
         end
