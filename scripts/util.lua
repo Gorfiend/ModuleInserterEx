@@ -251,12 +251,13 @@ function util.normalize_module_config(slots, module_config)
     module_config.effects = {}
     for _, module in pairs(module_config.module_list) do
         if module then
-            --- @type LuaItemPrototype
-            local module_proto = prototypes.item[module.name]
-            module_config.categories[module_proto.category] = module.name
+            local name = module.name
+            ---@cast name string
+            local module_proto = prototypes.item[name]
+            module_config.categories[module_proto.category] = name
             for cat, val in pairs(module_proto.module_effects) do
                 if val > 0 then
-                    module_config.effects[cat] = module.name --[[@as string]]
+                    module_config.effects[cat] = name
                 end
             end
         end
