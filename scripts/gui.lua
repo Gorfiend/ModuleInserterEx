@@ -708,6 +708,25 @@ function mi_gui.update_presets(pdata)
     end
 end
 
+--- @param player LuaPlayer
+--- @param pdata PlayerConfig
+--- @param new_preset PresetConfig The new preset to set as active
+--- @param do_print boolean Whether to print a message the new preset was selected
+function mi_gui.update_active_preset(player, pdata, new_preset, do_print)
+    if pdata.active_config == new_preset then return end
+
+    -- Ensure it is normalized
+    util.normalize_preset_config(new_preset)
+    pdata.active_config = new_preset
+    pdata.naming = nil -- Cancel any active rename
+    mi_gui.update_contents(player, pdata)
+    mi_gui.update_presets(pdata)
+    if do_print then
+        player.print({ "module-inserter-ex-storage-loaded", pdata.active_config.name },
+            { skip = defines.print_skip.never })
+    end
+end
+
 --- @param pdata PlayerConfig
 --- @param player LuaPlayer
 function mi_gui.destroy(pdata, player)
@@ -725,6 +744,12 @@ function mi_gui.destroy(pdata, player)
     pdata.gui.main = nil
     pdata.gui.presets = nil
     pdata.gui.import = nil
+end
+
+--- @param e MiEventInfo
+function mi_gui.window_is_open(e)
+    local window = e.pdata.gui and e.pdata.gui.main and e.pdata.gui.main.window
+    return window and window.valid and window.visible
 end
 
 --- @param e MiEventInfo
@@ -1001,15 +1026,10 @@ mi_gui.handlers = {
             local preset = pdata.saved_presets[index]
             if not preset then return end
 
-            pdata.active_config = preset
-            -- Ensure it is normalized
-            util.normalize_preset_config(pdata.active_config)
-
-            pdata.naming = nil -- Cancel any active rename
-            mi_gui.update_contents(e.player, pdata)
-            mi_gui.update_presets(pdata)
 
             local keep_open = not e.player.mod_settings["module-inserter-ex-close-after-load"].value
+            mi_gui.update_active_preset(e.player, e.pdata, preset, not keep_open)
+
             if not keep_open then
                 mi_gui.close(e)
                 e.player.print({ "module-inserter-ex-storage-loaded", pdata.active_config.name })

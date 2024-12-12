@@ -27,13 +27,46 @@ end
 local function get_module_inserter(e)
     local player = game.get_player(e.player_index)
     if not player then return end
-    local inv = player.get_main_inventory()
-    local mi = inv and inv.find_item_stack("module-inserter-ex") or nil
-    if mi then
-        mi.swap_stack(player.cursor_stack)
-    else
-        player.clear_cursor()
-        player.cursor_stack.set_stack({ name = "module-inserter-ex" })
+    player.clear_cursor()
+    player.cursor_stack.set_stack({ name = "module-inserter-ex" })
+end
+
+--- @param player LuaPlayer
+--- @return boolean is_holding true if the player currently has the module inserter selection tool in cursor
+local function player_is_holding_module_inserter(player)
+    if not player then return false end
+    if not player.cursor_stack then return false end
+    if not player.cursor_stack.valid_for_read then return false end
+    return player.cursor_stack.name == "module-inserter-ex"
+end
+
+--- @param e MiEventInfo
+--- @param cycleNext boolean true to go to next preset, false for previous
+local function cycle_active_preset(e, cycleNext)
+    -- Only activate if the config window is open, or the player is holding the inserter
+    if not mi_gui.window_is_open(e) and not player_is_holding_module_inserter(e.player) then
+        return
+    end
+    for i, preset in pairs(e.pdata.saved_presets) do
+        if preset == e.pdata.active_config then
+            local new_preset
+            if cycleNext then
+                if i == #e.pdata.saved_presets then
+                    new_preset = e.pdata.saved_presets[1]
+                else
+                    new_preset = e.pdata.saved_presets[i + 1]
+                end
+            else
+                if i == 1 then
+                    new_preset = e.pdata.saved_presets[#e.pdata.saved_presets]
+                else
+                    new_preset = e.pdata.saved_presets[i - 1]
+                end
+            end
+
+            mi_gui.update_active_preset(e.player, e.pdata, new_preset, not mi_gui.window_is_open(e))
+            break
+        end
     end
 end
 
@@ -358,6 +391,12 @@ end)
 script.on_event(defines.events.on_player_selected_area, on_player_selected_area)
 script.on_event(defines.events.on_player_alt_selected_area, on_player_alt_selected_area)
 script.on_event(defines.events.on_player_reverse_selected_area, on_player_reverse_selected_area)
+script.on_event("module-inserter-ex-next-preset", function(e)
+    cycle_active_preset(make_event_info(e), true)
+end)
+script.on_event("module-inserter-ex-previous-preset", function(e)
+    cycle_active_preset(make_event_info(e), false)
+end)
 
 gui.handle_events()
 
