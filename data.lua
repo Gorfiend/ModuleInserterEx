@@ -1,3 +1,4 @@
+require("prototypes.sprite")
 require("prototypes.style")
 require("prototypes.selection-tool")
 require("prototypes.custom-input")

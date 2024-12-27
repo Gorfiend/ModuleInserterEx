@@ -175,6 +175,30 @@ mi_gui.templates = {
             },
             children = {
                 {
+                    type = "flow",
+                    direction = "vertical",
+                    name = "reorder_buttons",
+                    style_mods = { vertical_spacing = 0, },
+                    children = {
+                        {
+                            type = "sprite-button",
+                            name = "move_up_button",
+                            handler = mi_gui.handlers.preset.move_up,
+                            sprite = "miex_arrow_up",
+                            tooltip = { "module-inserter-ex-move-preset-up-tooltip" },
+                            style_mods = { width = 16, height = 14, },
+                        },
+                        {
+                            type = "sprite-button",
+                            name = "move_down_button",
+                            handler = mi_gui.handlers.preset.move_down,
+                            sprite = "miex_arrow_down",
+                            tooltip = { "module-inserter-ex-move-preset-down-tooltip" },
+                            style_mods = { width = 16, height = 14, },
+                        }
+                    }
+                },
+                {
                     type = "button",
                     name = "select_button",
                     style_mods = { width = PRESET_BUTTON_FIELD_WIDTH },
@@ -705,6 +729,9 @@ function mi_gui.update_presets(pdata)
         end
         -- Don't allow deleting the final preset
         preset_flow.delete_button.enabled = (#pdata.saved_presets > 1)
+
+        preset_flow.reorder_buttons.move_up_button.enabled = (i > 1)
+        preset_flow.reorder_buttons.move_down_button.enabled = (i < #pdata.saved_presets)
     end
 end
 
@@ -1015,6 +1042,52 @@ mi_gui.handlers = {
         end
     },
     preset = {
+
+        --- @param e MiEventInfo
+        move_up = function(e)
+            local pdata = e.pdata
+            --- @type PresetRowTags
+            local tags = e.event.element.parent.parent.tags
+            local index = tags.preset_index
+
+            if index == 1 then return end
+
+            local preset = pdata.saved_presets[index]
+            if not preset then return end
+
+            table.remove(pdata.saved_presets, index)
+
+            if e.event.shift then
+                table.insert(pdata.saved_presets, 1, preset)
+            else
+                table.insert(pdata.saved_presets, index - 1, preset)
+            end
+
+            mi_gui.update_presets(pdata)
+        end,
+
+        --- @param e MiEventInfo
+        move_down = function(e)
+            local pdata = e.pdata
+            --- @type PresetRowTags
+            local tags = e.event.element.parent.parent.tags
+            local index = tags.preset_index
+
+            if index == #pdata.saved_presets then return end
+
+            local preset = pdata.saved_presets[index]
+            if not preset then return end
+
+            table.remove(pdata.saved_presets, index)
+
+            if e.event.shift then
+                table.insert(pdata.saved_presets, preset)
+            else
+                table.insert(pdata.saved_presets, index + 1, preset)
+            end
+
+            mi_gui.update_presets(pdata)
+        end,
 
         --- @param e MiEventInfo
         load = function(e)
