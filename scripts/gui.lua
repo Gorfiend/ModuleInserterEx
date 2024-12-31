@@ -264,12 +264,12 @@ mi_gui.templates = {
         return {
             type = "frame",
             direction = "vertical",
-            name = "window",
+            name = "miex_import_export_window",
             children = {
                 {
                     type = "flow",
                     name = "titlebar_flow",
-                    drag_target = "window",
+                    drag_target = "miex_import_export_window",
                     children = {
                         { type = "label",        style = "frame_title",               caption = caption,                            elem_mods = { ignored_by_interaction = true } },
                         { type = "empty-widget", style = "flib_titlebar_drag_handle", elem_mods = { ignored_by_interaction = true } },
@@ -318,12 +318,12 @@ function mi_gui.create(player_index)
         style_mods = { height = 750 }, ---@diagnostic disable-line: missing-fields
         direction = "vertical",
         handler = { [defines.events.on_gui_closed] = mi_gui.handlers.main.close_window },
-        name = "main_window",
+        name = "miex_main_window",
         children = {
             {
                 type = "flow",
                 name = "titlebar_flow",
-                drag_target = "main_window",
+                drag_target = "miex_main_window",
                 children = {
                     {
                         type = "label",
@@ -509,7 +509,7 @@ function mi_gui.create(player_index)
         }
     })
     pdata.gui.main = {
-        window = refs.main_window,
+        window = refs.miex_main_window,
         pin_button = refs.pin_button,
         scroll = refs.main_scroll,
         config_rows = refs.config_rows,
@@ -520,10 +520,10 @@ function mi_gui.create(player_index)
         preset_pane = refs.preset_pane,
     }
 
-    refs.main_window.force_auto_center()
+    refs.miex_main_window.force_auto_center()
     mi_gui.update_presets(pdata)
     mi_gui.update_contents(player, pdata)
-    refs.main_window.visible = false
+    refs.miex_main_window.visible = false
 end
 
 --- @param pdata PlayerConfig
@@ -537,11 +537,11 @@ function mi_gui.create_import_window(pdata, player, bp_string)
     end
     local refs = gui.add(player.gui.screen, { mi_gui.templates.import_export_window(bp_string) })
     pdata.gui.import = {
-        window = refs.window,
+        window = refs.miex_import_export_window,
         textbox = refs.textbox,
     }
 
-    refs.window.force_auto_center()
+    refs.miex_import_export_window.force_auto_center()
     local textbox = refs.textbox
     if bp_string then
         textbox.read_only = true
