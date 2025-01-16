@@ -564,6 +564,23 @@ function mi_gui.create_import_window(pdata, player, bp_string)
 end
 
 --- @param player LuaPlayer
+--- @param pdata PlayerConfig
+function mi_gui.update_module_config_table(player, pdata)
+    local active_config = pdata.active_config
+
+    pdata.gui.main.default_checkbox.state = active_config.use_default
+    if active_config.use_default then
+        pdata.gui.main.default_module_set.visible = true
+        mi_gui.update_module_set(player, 0, pdata.gui.main.default_module_set, storage.max_slot_count,
+            active_config.default)
+    else
+        pdata.gui.main.default_module_set.visible = false
+    end
+
+    mi_gui.update_module_config_rows(player, pdata.gui.main.module_config_table, active_config)
+end
+
+--- @param player LuaPlayer
 --- @param module_config_table LuaGuiElement
 --- @param config_tmp PresetConfig
 function mi_gui.update_module_config_rows(player, module_config_table, config_tmp)
@@ -581,6 +598,68 @@ function mi_gui.update_module_config_rows(player, module_config_table, config_tm
     for index, row_config in ipairs(config_tmp.rows) do
         mi_gui.update_module_config_row(player, mi_gui.get_mct_target_section(module_config_table, index),
             mi_gui.get_mct_module_set(module_config_table, index), row_config, index)
+    end
+end
+
+--- @param player LuaPlayer
+--- @param target_section LuaGuiElement
+--- @param module_set LuaGuiElement
+--- @param row_config RowConfig
+--- @param row_index int index of the row config being updated
+function mi_gui.update_module_config_row(player, target_section, module_set, row_config, row_index)
+    mi_gui.update_target_section(target_section, row_config.target)
+
+    if not util.target_config_has_entries(row_config.target) then
+        -- No assembler, delete the module section
+        for _, elem in pairs(module_set.children) do
+            elem.destroy()
+        end
+    else
+        local slots = util.get_target_config_max_slots(row_config.target)
+        -- Update the module section
+        mi_gui.update_module_set(player, row_index, module_set, slots, row_config.module_configs)
+    end
+end
+
+--- @param gui_target_table LuaGuiElement
+--- @param target_config TargetConfig
+function mi_gui.update_target_section(gui_target_table, target_config)
+    local target_button_count = #target_config.entities + 1
+    -- Add or destroy buttons as needed
+    while #gui_target_table.children < target_button_count do
+        --- @type TargetFrameTags
+        local tags = gui_target_table.tags
+        gui.add(gui_target_table, { mi_gui.templates.assembler_button(tags.row_index, #gui_target_table.children + 1) })
+    end
+    while #gui_target_table.children > target_button_count do
+        gui_target_table.children[#gui_target_table.children].destroy()
+    end
+
+    for i = 1, target_button_count do
+        local child = gui_target_table.children[i]
+        local target = target_config.entities[i]
+        child.elem_value = target
+        child.tooltip = util.get_localised_entity_name(target, { "module-inserter-ex-choose-assembler" })
+    end
+end
+
+--- @param player LuaPlayer
+--- @param row_index int index of the row being updated (0 for the default config)
+--- @param module_set LuaGuiElement
+--- @param slots int
+--- @param config_set ModuleConfigSet
+function mi_gui.update_module_set(player, row_index, module_set, slots, config_set)
+    for i, _ in ipairs(config_set.configs) do
+        local module_row = module_set.children[i]
+        if not module_row then
+            gui.add(module_set, mi_gui.templates.module_row(row_index, i, slots))
+        end
+        module_row = module_set.children[i]
+        mi_gui.update_modules(player, module_row, slots, config_set, i)
+    end
+
+    while #module_set.children > #config_set.configs do
+        module_set.children[#module_set.children].destroy()
     end
 end
 
@@ -617,85 +696,6 @@ function mi_gui.update_modules(player, gui_module_row, slots, config_set, index)
         end
         child.tooltip = tooltip
     end
-end
-
---- @param player LuaPlayer
---- @param row_index int index of the row being updated (0 for the default config)
---- @param module_set LuaGuiElement
---- @param slots int
---- @param config_set ModuleConfigSet
-function mi_gui.update_module_set(player, row_index, module_set, slots, config_set)
-    for i, _ in ipairs(config_set.configs) do
-        local module_row = module_set.children[i]
-        if not module_row then
-            gui.add(module_set, mi_gui.templates.module_row(row_index, i, slots))
-        end
-        module_row = module_set.children[i]
-        mi_gui.update_modules(player, module_row, slots, config_set, i)
-    end
-
-    while #module_set.children > #config_set.configs do
-        module_set.children[#module_set.children].destroy()
-    end
-end
-
---- @param gui_target_table LuaGuiElement
---- @param target_config TargetConfig
-function mi_gui.update_target_section(gui_target_table, target_config)
-    local target_button_count = #target_config.entities + 1
-    -- Add or destroy buttons as needed
-    while #gui_target_table.children < target_button_count do
-        --- @type TargetFrameTags
-        local tags = gui_target_table.tags
-        gui.add(gui_target_table, { mi_gui.templates.assembler_button(tags.row_index, #gui_target_table.children + 1) })
-    end
-    while #gui_target_table.children > target_button_count do
-        gui_target_table.children[#gui_target_table.children].destroy()
-    end
-
-    for i = 1, target_button_count do
-        local child = gui_target_table.children[i]
-        local target = target_config.entities[i]
-        child.elem_value = target
-        child.tooltip = util.get_localised_entity_name(target, { "module-inserter-ex-choose-assembler" })
-    end
-end
-
---- @param player LuaPlayer
---- @param target_section LuaGuiElement
---- @param module_set LuaGuiElement
---- @param row_config RowConfig
---- @param row_index int index of the row config being updated
-function mi_gui.update_module_config_row(player, target_section, module_set, row_config, row_index)
-    mi_gui.update_target_section(target_section, row_config.target)
-
-    if not util.target_config_has_entries(row_config.target) then
-        -- No assembler, delete the module section
-        for _, elem in pairs(module_set.children) do
-            elem.destroy()
-        end
-    else
-        local slots = util.get_target_config_max_slots(row_config.target)
-        -- Update the module section
-        mi_gui.update_module_set(player, row_index, module_set, slots, row_config.module_configs)
-    end
-end
-
---- @param player LuaPlayer
---- @param pdata PlayerConfig
-function mi_gui.update_module_config_table(player, pdata)
-    local active_config = pdata.active_config
-
-    pdata.gui.main.default_checkbox.state = active_config.use_default
-    if active_config.use_default then
-        pdata.gui.main.default_module_set.visible = true
-        mi_gui.update_module_set(player, 0, pdata.gui.main.default_module_set, storage.max_slot_count,
-            active_config.default)
-    else
-        pdata.gui.main.default_module_set.visible = false
-    end
-
-    mi_gui.update_module_config_rows(player, pdata.gui.main.module_config_table, active_config)
 end
 
 --- @param player LuaPlayer
