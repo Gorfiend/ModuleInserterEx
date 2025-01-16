@@ -28,9 +28,10 @@
 --- @field window LuaGuiElement
 --- @field pin_button LuaGuiElement
 --- @field scroll LuaGuiElement
---- @field config_rows LuaGuiElement
+--- @field module_config_table LuaGuiElement
 --- @field default_checkbox LuaGuiElement
 --- @field default_module_set LuaGuiElement
+--- @field default_module_set_holder LuaGuiElement
 
 --- @class (exact) PlayerGuiPresets
 --- @field preset_pane LuaGuiElement

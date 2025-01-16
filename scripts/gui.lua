@@ -6,8 +6,8 @@ local types = require("scripts.types")
 local util = require("scripts.util")
 
 local TARGET_SECTION_WIDTH = 180
+local MODULE_SET_WIDTH = 440
 local PRESET_BUTTON_FIELD_WIDTH = 200
-local MAIN_SCROLL_WIDTH = 440 + TARGET_SECTION_WIDTH
 
 local mi_gui = {}
 mi_gui.templates = {
@@ -52,6 +52,7 @@ mi_gui.templates = {
         }
     end,
 
+    --- A single module configuration row, defining the modules to place in machines
     --- @param row_index int
     --- @param module_row_index int
     --- @param slots int
@@ -103,14 +104,21 @@ mi_gui.templates = {
         return row_frame
     end,
 
+    --- A set of possibly multiple module row configs
     --- @param name string Name to give this gui element
+    --- @param row_index int? Index of the row of this module set (nil for the default module set)
     --- @return flib.GuiElemDef
-    module_set = function(name)
+    module_set = function(name, row_index)
         return {
-            type = "flow",
-            name = name or "module_set",
+            type = "frame",
+            name = row_index and (name .. "_" .. row_index) or name,
             direction = "vertical",
-            style_mods = { horizontally_stretchable = true },
+            style = "inside_shallow_frame_with_padding",
+            style_mods = { horizontally_stretchable = true, vertically_stretchable = true, },
+            --- @type TargetFrameTags
+            tags = {
+                row_index = row_index or 0,
+            },
             children = {},
         }
     end,
@@ -120,45 +128,37 @@ mi_gui.templates = {
     target_section = function(row_index)
         return {
             type = "frame",
-            name = "target_frame",
-            style = "slot_button_deep_frame",
-            style_mods = {
-                horizontally_stretchable = false,
-            },
-            --- @type TargetFrameTags
-            tags = {
-                row_index = row_index,
-            },
+            style = "inside_shallow_frame_with_padding",
+            style_mods = { horizontally_stretchable = true, vertically_stretchable = true, },
             children = {
                 {
-                    type = "table",
-                    column_count = 4,
-                    name = "target_section",
-                    style = "filter_slot_table",
+                    type = "frame",
+                    name = "target_frame_" .. row_index,
+                    style = "slot_button_deep_frame",
+                    style_mods = {
+                        horizontally_stretchable = false,
+                    },
                     --- @type TargetFrameTags
                     tags = {
                         row_index = row_index,
                     },
                     children = {
-                        mi_gui.templates.assembler_button(row_index, 1),
-                    },
+                        {
+                            type = "table",
+                            column_count = 4,
+                            name = "target_section",
+                            style = "filter_slot_table",
+                            --- @type TargetFrameTags
+                            tags = {
+                                row_index = row_index,
+                            },
+                            children = {
+                                mi_gui.templates.assembler_button(row_index, 1),
+                            },
+                        }
+                    }
                 }
-            }
-        }
-    end,
-
-    --- @param index int config row index for this row
-    --- @return flib.GuiElemDef
-    config_row = function(index)
-        return {
-            type = "frame",
-            name = index,
-            style = "flib_shallow_frame_in_shallow_frame",
-            children = {
-                mi_gui.templates.target_section(index),
-                { type = "empty-widget", style_mods = { width = 16 } },
-                mi_gui.templates.module_set("module_set"),
-            }
+            },
         }
     end,
 
@@ -381,65 +381,63 @@ function mi_gui.create(player_index)
                                 }
                             },
                             {
-                                type = "frame",
-                                style = "repeated_subheader_frame",
-                                children = {
-                                    {
-                                        type = "label",
-                                        style_mods = { minimal_width = TARGET_SECTION_WIDTH, horizontal_align = "center", }, ---@diagnostic disable-line: missing-fields
-                                        caption = { "", { "module-inserter-ex-target-entities" }, " [img=info]" },
-                                        tooltip = { "module-inserter-ex-target-entities-tooltip" },
-                                    },
-                                    mi_gui.templates.pushers.horizontal,
-                                    {
-                                        type = "label",
-                                        caption = { "", { "module-inserter-ex-module-specification" }, " [img=info]" },
-                                        tooltip = { "module-inserter-ex-module-specification-tooltip" },
-                                    },
-                                    mi_gui.templates.pushers.horizontal,
-                                }
-                            },
-                            {
                                 type = "scroll-pane",
                                 name = "main_scroll",
                                 style = "flib_naked_scroll_pane_no_padding",
-                                style_mods = { minimal_width = MAIN_SCROLL_WIDTH, }, ---@diagnostic disable-line: missing-fields
                                 vertical_scroll_policy = "always",
                                 children = {
                                     {
-                                        type = "frame",
-                                        style = "inside_shallow_frame_with_padding",
-                                        direction = "vertical",
+                                        type = "table",
+                                        name = "module_config_table",
+                                        style_mods = { vertically_stretchable = false, }, ---@diagnostic disable-line: missing-fields
+                                        column_count = 2,
                                         children = {
                                             {
                                                 type = "frame",
-                                                name = "default_frame",
-                                                style = "flib_shallow_frame_in_shallow_frame",
+                                                style = "repeated_subheader_frame",
                                                 children = {
                                                     {
-                                                        type = "flow",
-                                                        style_mods = { minimal_width = TARGET_SECTION_WIDTH, horizontally_stretchable = false, }, ---@diagnostic disable-line: missing-fields
-                                                        children = {
-                                                            type = "checkbox",
-                                                            name = "default_checkbox",
-                                                            caption = { "module-inserter-ex-default-modules" },
-                                                            state = false,
-                                                            style_mods = {
-                                                                margin = 6,
-                                                                horizontally_stretchable = true,
-                                                            },
-                                                            handler = { [defines.events.on_gui_checked_state_changed] = mi_gui.handlers.main.default_checkbox },
-                                                            tooltip =  { "module-inserter-ex-default-modules-tooltip" },
-                                                        }
+                                                        type = "label",
+                                                        style_mods = { minimal_width = TARGET_SECTION_WIDTH, horizontal_align = "center", }, ---@diagnostic disable-line: missing-fields
+                                                        caption = { "", { "module-inserter-ex-target-entities" }, " [img=info]" },
+                                                        tooltip = { "module-inserter-ex-target-entities-tooltip" },
                                                     },
-                                                    mi_gui.templates.module_set("default_module_set"),
+                                                }
+                                            },
+                                            {
+                                                type = "frame",
+                                                style = "repeated_subheader_frame",
+                                                children = {
+                                                    {
+                                                        type = "label",
+                                                        style_mods = { minimal_width = MODULE_SET_WIDTH, horizontal_align = "center", }, ---@diagnostic disable-line: missing-fields
+                                                        caption = { "", { "module-inserter-ex-module-specification" }, " [img=info]" },
+                                                        tooltip = { "module-inserter-ex-module-specification-tooltip" },
+                                                    },
+                                                }
+                                            },
+                                            {
+                                                type = "frame",
+                                                style = "inside_shallow_frame_with_padding",
+                                                style_mods = { horizontally_stretchable = true, vertically_stretchable = true, }, ---@diagnostic disable-line: missing-fields
+                                                children = {
+                                                    {
+                                                        type = "checkbox",
+                                                        name = "default_checkbox",
+                                                        caption = { "module-inserter-ex-default-modules" },
+                                                        state = false,
+                                                        style_mods = { margin = 6, horizontally_stretchable = true, }, ---@diagnostic disable-line: missing-fields
+                                                        handler = { [defines.events.on_gui_checked_state_changed] = mi_gui.handlers.main.default_checkbox },
+                                                        tooltip = { "module-inserter-ex-default-modules-tooltip" },
+                                                    }
                                                 },
                                             },
                                             {
                                                 type = "flow",
-                                                name = "config_rows",
-                                                direction = "vertical",
-                                                style_mods = { top_padding = 12, vertical_spacing = 6, }, ---@diagnostic disable-line: missing-fields
+                                                name = "default_module_set_holder",
+                                                children = {
+                                                    mi_gui.templates.module_set("default_module_set"),
+                                                }
                                             },
                                         },
                                     },
@@ -512,9 +510,10 @@ function mi_gui.create(player_index)
         window = refs.miex_main_window,
         pin_button = refs.pin_button,
         scroll = refs.main_scroll,
-        config_rows = refs.config_rows,
+        module_config_table = refs.module_config_table,
         default_checkbox = refs.default_checkbox,
         default_module_set = refs.default_module_set,
+        default_module_set_holder = refs.default_module_set_holder,
     }
     pdata.gui.presets = {
         preset_pane = refs.preset_pane,
@@ -522,8 +521,22 @@ function mi_gui.create(player_index)
 
     refs.miex_main_window.force_auto_center()
     mi_gui.update_presets(pdata)
-    mi_gui.update_contents(player, pdata)
+    mi_gui.update_module_config_table(player, pdata)
     refs.miex_main_window.visible = false
+end
+
+--- @param module_config_table LuaGuiElement
+--- @param row_index int index of the row to get
+--- @return LuaGuiElement target_section the target section for the row provided
+function mi_gui.get_mct_target_section(module_config_table, row_index)
+    return module_config_table.children[row_index * 2 + 3].children[1].target_section
+end
+
+--- @param module_config_table LuaGuiElement
+--- @param row_index int index of the row to get
+--- @return LuaGuiElement module_set the module set for the row provided
+function mi_gui.get_mct_module_set(module_config_table, row_index)
+    return module_config_table.children[row_index * 2 + 4]
 end
 
 --- @param pdata PlayerConfig
@@ -551,19 +564,23 @@ function mi_gui.create_import_window(pdata, player, bp_string)
 end
 
 --- @param player LuaPlayer
---- @param gui_config_rows LuaGuiElement
+--- @param module_config_table LuaGuiElement
 --- @param config_tmp PresetConfig
-function mi_gui.update_rows(player, gui_config_rows, config_tmp)
+function mi_gui.update_module_config_rows(player, module_config_table, config_tmp)
     -- Add or destroy rows as needed
-    while #gui_config_rows.children < #config_tmp.rows do
-        gui.add(gui_config_rows, { mi_gui.templates.config_row(#gui_config_rows.children + 1) })
+    while ((#module_config_table.children - 4) / 2) < #config_tmp.rows do
+        local row_index = ((#module_config_table.children - 4) / 2) + 1
+        gui.add(module_config_table, { mi_gui.templates.target_section(row_index) })
+        gui.add(module_config_table, { mi_gui.templates.module_set("module_set", row_index) })
     end
-    while #gui_config_rows.children > #config_tmp.rows do
-        gui_config_rows.children[#gui_config_rows.children].destroy()
+    while ((#module_config_table.children - 4) / 2) > #config_tmp.rows do
+        module_config_table.children[#module_config_table.children].destroy() -- module set
+        module_config_table.children[#module_config_table.children].destroy() -- target section
     end
 
     for index, row_config in ipairs(config_tmp.rows) do
-        mi_gui.update_row(player, gui_config_rows, row_config, index)
+        mi_gui.update_module_config_row(player, mi_gui.get_mct_target_section(module_config_table, index),
+            mi_gui.get_mct_module_set(module_config_table, index), row_config, index)
     end
 end
 
@@ -593,7 +610,8 @@ function mi_gui.update_modules(player, gui_module_row, slots, config_set, index)
     for i = 1, slots do
         local child = button_table.children[i]
         child.elem_value = module_list[i] or nil
-        local tooltip = module_list[i] and prototypes.item[module_list[i].name].localised_name or { "module-inserter-ex-choose-module" }
+        local tooltip = module_list[i] and prototypes.item[module_list[i].name].localised_name or
+            { "module-inserter-ex-choose-module" }
         if i == 1 and player.mod_settings["module-inserter-ex-fill-all"].value then
             tooltip = { "", tooltip, "\n", { "module-inserter-ex-choose-module-fill-all-tooltip" } }
         end
@@ -607,7 +625,7 @@ end
 --- @param slots int
 --- @param config_set ModuleConfigSet
 function mi_gui.update_module_set(player, row_index, module_set, slots, config_set)
-    for i, config_row in ipairs(config_set.configs) do
+    for i, _ in ipairs(config_set.configs) do
         local module_row = module_set.children[i]
         if not module_row then
             gui.add(module_set, mi_gui.templates.module_row(row_index, i, slots))
@@ -644,46 +662,40 @@ function mi_gui.update_target_section(gui_target_table, target_config)
 end
 
 --- @param player LuaPlayer
---- @param gui_config_rows LuaGuiElement
+--- @param target_section LuaGuiElement
+--- @param module_set LuaGuiElement
 --- @param row_config RowConfig
 --- @param row_index int index of the row config being updated
-function mi_gui.update_row(player, gui_config_rows, row_config, row_index)
-    if not (gui_config_rows and gui_config_rows.valid) then return end
-    local row = gui_config_rows.children[row_index]
-    if not row then
-        local row_template = mi_gui.templates.config_row(row_index)
-        local _, first = gui.add(gui_config_rows, { row_template })
-        row = first
-    end
-
-    mi_gui.update_target_section(row.target_frame.target_section, row_config.target)
+function mi_gui.update_module_config_row(player, target_section, module_set, row_config, row_index)
+    mi_gui.update_target_section(target_section, row_config.target)
 
     if not util.target_config_has_entries(row_config.target) then
         -- No assembler, delete the module section
-        for _, elem in pairs(row.module_set.children) do
+        for _, elem in pairs(module_set.children) do
             elem.destroy()
         end
     else
         local slots = util.get_target_config_max_slots(row_config.target)
         -- Update the module section
-        mi_gui.update_module_set(player, row_index, row.module_set, slots, row_config.module_configs)
+        mi_gui.update_module_set(player, row_index, module_set, slots, row_config.module_configs)
     end
 end
 
 --- @param player LuaPlayer
 --- @param pdata PlayerConfig
-function mi_gui.update_contents(player, pdata)
+function mi_gui.update_module_config_table(player, pdata)
     local active_config = pdata.active_config
 
     pdata.gui.main.default_checkbox.state = active_config.use_default
     if active_config.use_default then
         pdata.gui.main.default_module_set.visible = true
-        mi_gui.update_module_set(player, 0, pdata.gui.main.default_module_set, storage.max_slot_count, active_config.default)
+        mi_gui.update_module_set(player, 0, pdata.gui.main.default_module_set, storage.max_slot_count,
+            active_config.default)
     else
         pdata.gui.main.default_module_set.visible = false
     end
 
-    mi_gui.update_rows(player, pdata.gui.main.config_rows, active_config)
+    mi_gui.update_module_config_rows(player, pdata.gui.main.module_config_table, active_config)
 end
 
 --- @param player LuaPlayer
@@ -696,7 +708,7 @@ function mi_gui.add_preset(player, pdata, select, data)
     table.insert(pdata.saved_presets, new_preset)
     if select then
         pdata.active_config = new_preset
-        mi_gui.update_contents(player, pdata)
+        mi_gui.update_module_config_table(player, pdata)
     end
     mi_gui.update_presets(pdata)
     return true
@@ -746,7 +758,7 @@ function mi_gui.update_active_preset(player, pdata, new_preset, do_print)
     util.normalize_preset_config(new_preset)
     pdata.active_config = new_preset
     pdata.naming = nil -- Cancel any active rename
-    mi_gui.update_contents(player, pdata)
+    mi_gui.update_module_config_table(player, pdata)
     mi_gui.update_presets(pdata)
     if do_print then
         player.print({ "module-inserter-ex-storage-loaded", pdata.active_config.name },
@@ -827,13 +839,13 @@ mi_gui.handlers = {
         --- @param e MiEventInfo
         default_checkbox = function(e)
             e.pdata.active_config.use_default = e.pdata.gui.main.default_checkbox.state
-            mi_gui.update_contents(e.player, e.pdata)
+            mi_gui.update_module_config_table(e.player, e.pdata)
         end,
         --- @param e MiEventInfo
         clear_all = function(e)
             e.pdata.active_config.default = types.make_module_config_set()
             e.pdata.active_config.rows = { types.make_row_config() }
-            mi_gui.update_contents(e.player, e.pdata)
+            mi_gui.update_module_config_table(e.player, e.pdata)
         end,
         --- @param e MiEventInfo
         close_window = function(e)
@@ -863,8 +875,8 @@ mi_gui.handlers = {
         choose_assembler = function(e)
             local pdata = e.pdata
             local active_config = pdata.active_config
-            local config_rows = pdata.gui.main.config_rows
-            if not (config_rows and config_rows.valid) then return end
+            local module_config_table = pdata.gui.main.module_config_table
+            if not (module_config_table and module_config_table.valid) then return end
             local element = e.event.element
             if not element then return end
             local elem_value = element.elem_value
@@ -884,15 +896,18 @@ mi_gui.handlers = {
                         if target and target == elem_value then
                             element.elem_value = old_value
                             if k == tags.row_index then
-                                e.player.print({ "module-inserter-ex-already-configured-in-this-row", prototypes.entity[elem_value].localised_name })
+                                e.player.print({ "module-inserter-ex-already-configured-in-this-row", prototypes.entity
+                                    [elem_value].localised_name })
                             else
-                                e.player.print({ "module-inserter-ex-already-configured-in-another-row", prototypes.entity[elem_value].localised_name, k })
+                                e.player.print({ "module-inserter-ex-already-configured-in-another-row", prototypes
+                                    .entity[elem_value].localised_name, k })
                             end
                             return
                         end
                     end
                 end
-                local valid, error = util.entity_valid_for_module_set(elem_value --[[@as string]], row_config.module_configs)
+                local valid, error = util.entity_valid_for_module_set(elem_value --[[@as string]],
+                    row_config.module_configs)
                 if not valid then
                     element.elem_value = old_value
                     e.player.print(error)
@@ -911,7 +926,7 @@ mi_gui.handlers = {
 
             util.normalize_preset_config(active_config)
 
-            mi_gui.update_rows(e.player, e.pdata.gui.main.config_rows, active_config)
+            mi_gui.update_module_config_rows(e.player, e.pdata.gui.main.module_config_table, active_config)
             if do_scroll then
                 e.pdata.gui.main.scroll.scroll_to_bottom()
             end
@@ -923,8 +938,8 @@ mi_gui.handlers = {
             if not element then return end
             local active_config = e.pdata.active_config
             if not active_config then return end
-            local config_rows = e.pdata.gui.main.config_rows
-            if not (config_rows and config_rows.valid) then return end
+            local module_config_table = e.pdata.gui.main.module_config_table
+            if not (module_config_table and module_config_table.valid) then return end
 
             --- @type ModuleConfigSet
             local module_config_set
@@ -956,7 +971,8 @@ mi_gui.handlers = {
                     return
                 end
             end
-            module_config.module_list[slot] = util.normalize_id_quality_pair(element.elem_value --[[@as ItemIDAndQualityIDPair]])
+            module_config.module_list[slot] = util.normalize_id_quality_pair(element
+                .elem_value --[[@as ItemIDAndQualityIDPair]])
 
             if slot == 1 and e.player.mod_settings["module-inserter-ex-fill-all"].value then
                 for i = 2, slot_count do
@@ -966,7 +982,9 @@ mi_gui.handlers = {
             util.normalize_module_config(slot_count, module_config)
 
             if not is_default_config then
-                mi_gui.update_module_set(e.player, module_button_tags.row_index, config_rows.children[module_button_tags.row_index].module_set, slot_count, module_config_set)
+                mi_gui.update_module_set(e.player, module_button_tags.row_index,
+                    mi_gui.get_mct_module_set(module_config_table, module_button_tags.row_index), slot_count,
+                    module_config_set)
             else
                 mi_gui.update_module_set(e.player, 0, e.pdata.gui.main.default_module_set, slot_count, module_config_set)
             end
@@ -993,7 +1011,7 @@ mi_gui.handlers = {
                 local row_config = e.pdata.active_config.rows[row_index]
                 config_set = row_config.module_configs
                 slots = util.get_target_config_max_slots(row_config.target)
-                gui_module_set = e.pdata.gui.main.config_rows.children[row_index].module_set
+                gui_module_set = mi_gui.get_mct_module_set(e.pdata.gui.main.module_config_table, row_index)
             end
             config_set.configs[#config_set.configs + 1] = types.make_module_config()
             mi_gui.update_module_set(e.player, row_index, gui_module_set, slots, config_set)
@@ -1015,7 +1033,7 @@ mi_gui.handlers = {
                 local row_config = e.pdata.active_config.rows[row_index]
                 config_set = row_config.module_configs
                 slots = util.get_target_config_max_slots(row_config.target)
-                gui_module_set = e.pdata.gui.main.config_rows.children[row_index].module_set
+                gui_module_set = mi_gui.get_mct_module_set(e.pdata.gui.main.module_config_table, row_index)
             end
             table.remove(config_set.configs, module_row_tags.module_row_index)
             mi_gui.update_module_set(e.player, row_index, gui_module_set, slots, config_set)
@@ -1128,7 +1146,7 @@ mi_gui.handlers = {
             table.remove(e.pdata.saved_presets, tags.preset_index)
             if update_selection then
                 e.pdata.active_config = e.pdata.saved_presets[math.min(#e.pdata.saved_presets, tags.preset_index)]
-                mi_gui.update_contents(e.player, e.pdata)
+                mi_gui.update_module_config_table(e.player, e.pdata)
             end
             mi_gui.update_presets(e.pdata)
         end,
