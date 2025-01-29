@@ -62,6 +62,14 @@ local function check_array(table_name, arr, check)
     end
 end
 
+--- @param quality string the quality string to check
+--- @return string? error string
+local function check_quality_valid(quality)
+    if quality ~= nil then
+        if prototypes.quality[quality] == nil then return "not a valid quality: " .. quality end
+    end
+end
+
 --- @return string? error string
 function checker.preset(preset)
     if type(preset) ~= "table" then
@@ -100,6 +108,20 @@ function checker.target_config_set(config_set)
                 if prototypes.entity[ent] == nil then return "entity not valid: " .. ent end
             end)
         end,
+        recipes = function(x)
+            return check_array("recipes", x, checker.recipe_with_quality)
+        end,
+    })
+end
+
+--- @return string? error string
+function checker.recipe_with_quality(recipe_with_quality)
+    return check_all("recipe_with_quality", recipe_with_quality, {
+        name = function(x)
+            -- TODO instead of failing with a missing prototype, maybe do a clean after and notify of the missing things?
+            if prototypes.recipe[x] == nil then return "recipe not valid: " .. x end
+        end,
+        quality = check_quality_valid,
     })
 end
 
@@ -127,15 +149,9 @@ function checker.is_module_definition(item)
     return check_all("item_quality_pair", item, {
         name = function(x)
             -- TODO instead of failing with a missing prototype, maybe do a clean after and notify of the missing things?
-            if type(x) ~= "string" then return "name is not a string" end
             if prototypes.item[x] == nil then return "not a valid item: " .. x end
         end,
-        quality = function(x)
-            if x ~= nil then
-                if type(x) ~= "string" then return "quality is not a string" end
-                if prototypes.quality[x] == nil then return "not a valid quality: " .. x end
-            end
-        end,
+        quality = check_quality_valid,
     })
 end
 

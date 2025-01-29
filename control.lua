@@ -11,7 +11,7 @@ storage = {} ---@diagnostic disable-line: missing-fields
 
 local control = {}
 
---- @param e GuiEventData|EventData.on_mod_item_opened|EventData.CustomInputEvent|EventData.on_lua_shortcut
+--- @param e GuiEventData|EventData|EventData.on_mod_item_opened|EventData.CustomInputEvent|EventData.on_lua_shortcut
 --- @return MiEventInfo
 local function make_event_info(e)
     return {
@@ -118,26 +118,41 @@ function control.delayed_creation(e)
                 goto continue
             end
 
-            local set_to_use = work_data.entity_to_set_cache[ent_name]
-            if not set_to_use then
-                set_to_use = util.find_module_set_to_use_for_entity(ent_name, work_data.preset)
-                work_data.entity_to_set_cache[ent_name] = set_to_use
+            --- @type PrototypeWithQuality?
+            local recipe = nil
+            if ent_type == "assembling-machine" then
+                recipe = util.recipe_pair_from_entity(entity)
+            elseif ent_type == "furnace" then
+                recipe = util.normalize_recipe_id_quality_pair(entity.previous_recipe)
             end
-            if set_to_use == true then
+
+            local cache_key
+            if recipe then
+                cache_key = ent_name .. "|" .. recipe.name .. "|" .. recipe.quality
+            else
+                cache_key = ent_name
+            end
+
+
+            local cached_value = work_data.entity_recipe_to_config_cache[cache_key]
+            local messages
+            if cached_value == nil then
+                local set_to_use = util.find_module_set_to_use_for_entity(ent_name, recipe, work_data.preset)
+                if set_to_use == true then
+                    cached_value = true
+                else
+                    cached_value, messages = util.choose_module_config_from_set(ent_name, recipe, set_to_use)
+                end
+                work_data.entity_recipe_to_config_cache[cache_key] = cached_value
+            end
+
+            if cached_value == true then
+                work_data.entity_recipe_to_config_cache[cache_key] = true
                 goto continue -- Don't set anything on this entity type
             end
 
-            local recipe = ent_type == "assembling-machine" and entity.get_recipe()
-            local recipe_name = recipe and recipe.name or ""
-            local modules = work_data.entity_recipe_to_config_cache[ent_name .. "|" .. recipe_name]
-            local messages
-            if not modules then
-                modules, messages = util.choose_module_config_from_set(ent_name, recipe, set_to_use)
-                work_data.entity_recipe_to_config_cache[ent_name .. "|" .. recipe_name] = modules
-            end
-
-            if modules then
-                util.create_request_proxy(entity, modules, true)
+            if cached_value then
+                util.create_request_proxy(entity, cached_value --[[@as ModuleConfig]], true)
             end
             if messages then
                 for k, v in pairs(messages) do
@@ -324,6 +339,15 @@ script.on_load(function()
 end)
 
 
+local function normalize_all_presets()
+    for _, player in pairs(game.players) do
+        local pdata = storage._pdata[player.index]
+        for _, preset in pairs(pdata.saved_presets) do
+            util.normalize_preset_config(preset)
+        end
+    end
+end
+
 --- @type MigrationsTable
 local migrations = {
     ["7.0.0"] = function()
@@ -353,24 +377,24 @@ local migrations = {
     end,
     ["7.0.4"] = function()
         -- Fix up the category definitions
-        for _, player in pairs(game.players) do
-            local pdata = storage._pdata[player.index]
-            for _, preset in pairs(pdata.saved_presets) do
-                util.normalize_preset_config(preset)
-            end
-        end
-    end
+        normalize_all_presets()
+    end,
+    ["7.2.0"] = function()
+        -- Add empty recipe array to all targets
+        normalize_all_presets()
+    end,
 }
 
 script.on_configuration_changed(function(e)
     create_lookup_tables()
+    remove_invalid_items()
     if migration.on_config_changed(e, migrations) then
+        -- Always remove/rebuild guis
         for pi, pdata in pairs(storage._pdata) do
             mi_gui.destroy(pdata, game.get_player(pi) --[[@as LuaPlayer]])
             mi_gui.create(pi)
         end
     end
-    remove_invalid_items()
     update_on_tick_listener(true)
 end)
 
@@ -424,24 +448,23 @@ remote.add_interface("ModuleInserterEx", {
 
     --- @param player int|LuaPlayer player index or LuaPlayer to source the config from
     --- @param entity string|LuaEntity Entity name or LuaEntity to get the config for
-    --- @return (false|ItemIDAndQualityIDPair)[]? modules nil no config for the given entity, or an array the same length as modules slots in the config,
+    --- @return (false|ItemIDAndQualityIDPair)[]? modules nil if no config for the given entity, or an array the same length as modules slots in the config,
     ---         with each index either an ItemIDAndQualityIDPair of the module to place there or false to leave that slot empty
     get_modules_for_entity = function(player, entity)
         if type(player) == "number" then player = game.players[player] end
         if not player or not player.valid then return end
 
-        local recipe = nil
         local ent_name
+        local recipe
         if type(entity) == "string" then
             ent_name = entity
         else
             if not entity.valid then return end
-            ent_name = entity.ghost_name or entity.name
-            local ent_type = entity.ghost_type or entity.type
-            recipe = ent_type == "assembling-machine" and entity.get_recipe()
+            ent_name = util.get_entity_name(entity)
+            recipe = util.recipe_pair_from_entity(entity)
         end
 
-        local set_to_use = util.find_module_set_to_use_for_entity(ent_name, storage._pdata[player.index].active_config)
+        local set_to_use = util.find_module_set_to_use_for_entity(ent_name, recipe, storage._pdata[player.index].active_config)
         if set_to_use == true then return end -- Don't set anything on this entity type
         module_config, messages = util.choose_module_config_from_set(ent_name, recipe, set_to_use)
         if not module_config then return end
@@ -473,8 +496,7 @@ remote.add_interface("ModuleInserterEx", {
             if not entity or not entity.valid then
                 entity_list[key] = nil
             else
-                local type = entity.ghost_type or entity.type
-                if not valid_types[type] then
+                if not valid_types[util.get_entity_type(entity)] then
                     entity_list[key] = nil
                 end
             end

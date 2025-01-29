@@ -51,8 +51,9 @@
 --- @field target TargetConfig Target entities to apply these modules to
 --- @field module_configs ModuleConfigSet set of module configs for this row
 
---- @class (exact) TargetConfig
+--- @class (exact) TargetConfig Requires at least one entity or recipe. If both are specified, then both must match to be included.
 --- @field entities string[] List of entities (assemblers) to apply the config to
+--- @field recipes PrototypeWithQuality[] List of recipes to apply the config to
 
 --- @class (exact) ModuleConfigSet
 --- @field configs ModuleConfig[]
@@ -73,8 +74,7 @@
 --- @field player_index int
 --- @field clear boolean If true, remove all current modules
 --- @field result_messages {[LocalisedString]: LocalisedString}
---- @field entity_to_set_cache {[string]: ModuleConfigSet|true}
---- @field entity_recipe_to_config_cache {[string]: ModuleConfig|false}
+--- @field entity_recipe_to_config_cache {[string]: ModuleConfig|true|false}
 
 --- @class (exact) ModuleRowTags
 --- @field row_index int index of the row, 0 is the default row
@@ -125,7 +125,8 @@ end
 function types.make_target_config()
     --- @type TargetConfig
     return {
-        entities = {}
+        entities = {},
+        recipes = {},
     }
 end
 

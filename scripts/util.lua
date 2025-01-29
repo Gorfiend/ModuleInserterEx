@@ -16,6 +16,32 @@ function util.generate_random_name()
     return game.backer_names[math.random(1, #game.backer_names)]
 end
 
+--- @param table table
+--- @return boolean
+function util.table_is_empty(table)
+    return next(table) == nil
+end
+
+--- @param entity LuaEntity
+--- @return string
+function util.get_entity_name(entity)
+    if entity.type == "entity-ghost" then
+        return entity.ghost_name
+    else
+        return entity.name
+    end
+end
+
+--- @param entity LuaEntity
+--- @return string
+function util.get_entity_type(entity)
+    if entity.type == "entity-ghost" then
+        return entity.ghost_type
+    else
+        return entity.type
+    end
+end
+
 --- @param pair ItemIDAndQualityIDPair?
 --- @return ItemIDAndQualityIDPair|false?
 function util.normalize_id_quality_pair(pair)
@@ -27,6 +53,45 @@ function util.normalize_id_quality_pair(pair)
         }
     end
     return pair
+end
+
+--- @param pair RecipeIDAndQualityIDPair?
+--- @return PrototypeWithQuality?
+function util.normalize_recipe_id_quality_pair(pair)
+    if not pair then return nil end
+    local string_pair = {}
+    if type(pair.name) == "string" then
+        string_pair.name = pair.name
+    else
+        string_pair.name = pair.name.name
+    end
+    if type(pair.quality) == "string" then
+        string_pair.quality = pair.quality
+    else
+        string_pair.quality = pair.quality.name
+    end
+    return string_pair
+end
+
+--- @param entity LuaEntity?
+--- @return PrototypeWithQuality?
+function util.recipe_pair_from_entity(entity)
+    if not entity or not entity.valid then return nil end
+
+    local type = util.get_entity_type(entity)
+
+    if type == "assembling-machine" then
+        local r, q = entity.get_recipe()
+        if r and q then
+            return {
+                name = r.name,
+                quality = q.name,
+            }
+        end
+    elseif type == "furnace" then
+        return util.normalize_recipe_id_quality_pair(entity.previous_recipe)
+    end
+    return nil
 end
 
 --- @param entity string
@@ -203,6 +268,19 @@ function util.get_localised_entity_name(entity_name, fallback)
     return entity_name and prototypes.entity[entity_name] and prototypes.entity[entity_name].localised_name or fallback
 end
 
+--- @param entity_name string|PrototypeWithQuality?
+--- @param fallback LocalisedString
+--- @return LocalisedString
+function util.get_localised_recipe_name(entity_name, fallback)
+    local name = nil
+    if type(entity_name) == "string" then
+        name = entity_name
+    elseif entity_name then
+        name = entity_name.name
+    end
+    return name and prototypes.recipe[name] and prototypes.recipe[name].localised_name or fallback
+end
+
 --- @param module_config ModuleConfig
 --- @return boolean
 function util.module_config_has_entries(module_config)
@@ -215,7 +293,7 @@ end
 --- @param target_config TargetConfig
 --- @return boolean
 function util.target_config_has_entries(target_config)
-    return next(target_config.entities) ~= nil
+    return not util.table_is_empty(target_config.entities) or not util.table_is_empty(target_config.recipes)
 end
 
 --- @param row_config RowConfig
@@ -227,6 +305,9 @@ end
 --- @param target_config TargetConfig
 --- @return int
 function util.get_target_config_max_slots(target_config)
+    if #target_config.recipes > 0 and #target_config.entities == 0 then
+        return storage.max_slot_count
+    end
     local max_slots = 0
     for _, target in pairs(target_config.entities) do
         max_slots = math.max(max_slots, storage.name_to_slot_count[target])
@@ -294,6 +375,9 @@ function util.normalize_target_config(target_config)
             index = index + 1
         end
     end
+
+    -- ensure there is a recipe array
+    target_config.recipes = target_config.recipes or {}
 end
 
 --- Resize the config rows, removing empty rows, and making sure one empty row at the end
@@ -304,11 +388,11 @@ function util.normalize_preset_config(config)
     local index = 1
     while index <= #config.rows do
         local row_config = config.rows[index]
+        util.normalize_target_config(row_config.target)
         local have_entries = util.row_config_has_entries(row_config)
         if not have_entries then
             table.remove(config.rows, index)
         else
-            util.normalize_target_config(row_config.target)
             util.normalize_module_set(util.get_target_config_max_slots(row_config.target), row_config.module_configs)
             index = index + 1
         end
@@ -318,20 +402,20 @@ function util.normalize_preset_config(config)
     table.insert(config.rows, types.make_row_config())
 end
 
---- @param recipe LuaRecipe
+--- @param recipe LuaRecipePrototype
 --- @param modules ModuleConfig
 --- @return true|false, LocalisedString
 function util.modules_allowed(recipe, modules)
-    if recipe.prototype.allowed_effects then
+    if recipe.allowed_effects then
         for effect, _ in pairs(modules.effects) do
-            if not recipe.prototype.allowed_effects[effect] then
+            if not recipe.allowed_effects[effect] then
                 return false, { "item-limitation." .. effect .. "-effect"}
             end
         end
     end
-    if recipe.prototype.allowed_module_categories then
+    if recipe.allowed_module_categories then
         for category, _ in pairs(modules.categories) do
-            if not recipe.prototype.allowed_module_categories[category] then
+            if not recipe.allowed_module_categories[category] then
                 return false, { "item-limitation." .. category .. "-effect"}
             end
         end
@@ -339,17 +423,56 @@ function util.modules_allowed(recipe, modules)
     return true
 end
 
---- @param name string
+function util.array_contains(tab, search_for)
+    for _, value in ipairs(tab) do
+        if value == search_for then
+            return true
+        end
+    end
+
+    return false
+end
+
+--- @param tab PrototypeWithQuality[]
+--- @param recipe PrototypeWithQuality
+function util.array_contains_recipe(tab, recipe)
+    for _, value in ipairs(tab) do
+        if value.name == recipe.name and (value.quality == "normal" or value.quality == recipe.quality) then
+            return true
+        end
+    end
+
+    return false
+end
+
+--- @param entity_name string
+--- @param recipe PrototypeWithQuality?
 --- @param preset PresetConfig
---- @return ModuleConfigSet|true Module config set to use for this entity, or nil if none
-function util.find_module_set_to_use_for_entity(name, preset)
+--- @return ModuleConfigSet|true Module config set to use for this entity, or true if none
+function util.find_module_set_to_use_for_entity(entity_name, recipe, preset)
+    -- If a recipe is set, then first check for matches with targets that have both recipes and entities
+    if recipe then
+        for _, row in pairs(preset.rows) do
+            if #row.target.recipes > 0 and #row.target.entities > 0 then
+                if util.array_contains(row.target.entities, entity_name) and util.array_contains_recipe(row.target.recipes, recipe) then
+                    return row.module_configs
+                end
+            end
+        end
+    end
+    -- Next check any entity-only and recipe-only rows in order
     for _, row in pairs(preset.rows) do
-        for _, target in ipairs(row.target.entities) do
-            if name == target then
+        if #row.target.recipes == 0 then
+            if util.array_contains(row.target.entities, entity_name) then
+                return row.module_configs
+            end
+        elseif recipe and #row.target.entities == 0 then
+            if util.array_contains_recipe(row.target.recipes, recipe) then
                 return row.module_configs
             end
         end
     end
+    -- Otherwise, use default if enabled
     if preset.use_default then
         return preset.default
     end
@@ -357,9 +480,9 @@ function util.find_module_set_to_use_for_entity(name, preset)
 end
 
 --- @param name string
---- @param recipe false|LuaRecipe?
+--- @param recipe PrototypeWithQuality?
 --- @param module_config_set ModuleConfigSet
---- @return ModuleConfig|false, {[LocalisedString]: LocalisedString}? Module config to use for this entity, or nil if none, with table of error messages
+--- @return ModuleConfig|false, {[LocalisedString]: LocalisedString}? Module config to use for this entity, or false if none, with table of error messages
 function util.choose_module_config_from_set(name, recipe, module_config_set)
     --- @type ModuleConfig?
     local config_to_use = nil
@@ -368,7 +491,7 @@ function util.choose_module_config_from_set(name, recipe, module_config_set)
         local valid, message = util.entity_valid_for_modules(name, module_config)
         if valid then
             if recipe then
-                valid, message = util.modules_allowed(recipe, module_config)
+                valid, message = util.modules_allowed(prototypes.recipe[recipe.name], module_config)
                 if valid then
                     config_to_use = module_config
                     break

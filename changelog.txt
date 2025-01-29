@@ -1,6 +1,8 @@
 ---------------------------------------------------------------------------------------------------
-Version: 7.1.3
+Version: 7.1.4
 Date: ????
+  Features:
+    - Add ability to select recipes in target configurations, allowing different modules to be used based on the current recipe of a machine
   Bugfixes:
     - Fix incorrectly running module inserter when a selection tool from a different mod is used (potentially causing a crash)
 ---------------------------------------------------------------------------------------------------

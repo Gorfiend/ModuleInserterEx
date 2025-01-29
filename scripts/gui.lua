@@ -5,19 +5,21 @@ local import_export = require("scripts.import-export")
 local types = require("scripts.types")
 local util = require("scripts.util")
 
-local TARGET_SECTION_WIDTH = 180
+local TARGET_SECTION_WIDTH = 276
 local MODULE_SET_WIDTH = 440
 local PRESET_BUTTON_FIELD_WIDTH = 200
 
 local mi_gui = {}
 mi_gui.templates = {
-    --- @param row_index int
-    --- @param index int
+    --- @param row_index int index of the config row this is part of
+    --- @param config_index int index of this entity in the target.entities array
+    --- @param table_index int? index of this button in its parent
     --- @return flib.GuiElemDef
-    assembler_button = function(row_index, index)
+    assembler_button = function(row_index, config_index, table_index)
         return {
             type = "choose-elem-button",
-            name = index,
+            name = "assembler-" .. config_index,
+            index = table_index,
             style = "slot_button",
             handler = { [defines.events.on_gui_elem_changed] = mi_gui.handlers.main.choose_assembler },
             elem_type = "entity",
@@ -26,7 +28,28 @@ mi_gui.templates = {
             --- @type TargetButtonTags
             tags = {
                 row_index = row_index,
-                slot_index = index,
+                slot_index = config_index,
+            }
+        }
+    end,
+
+    --- @param row_index int index of the config row this is part of
+    --- @param config_index int index of this recipe in the target.recipes array
+    --- @param table_index int? index of this button in its parent
+    --- @return flib.GuiElemDef
+    recipe_button = function(row_index, config_index, table_index)
+        return {
+            type = "choose-elem-button",
+            name = "recipe-" .. config_index,
+            index = table_index,
+            style = "yellow_slot_button",
+            handler = { [defines.events.on_gui_elem_changed] = mi_gui.handlers.main.choose_recipe },
+            elem_type = "recipe-with-quality",
+            tooltip = { "module-inserter-ex-choose-recipe" },
+            --- @type TargetButtonTags
+            tags = {
+                row_index = row_index,
+                slot_index = config_index,
             }
         }
     end,
@@ -125,15 +148,66 @@ mi_gui.templates = {
 
     --- @param row_index int
     --- @return flib.GuiElemDef
+    target_entity_table = function(row_index, column_count)
+        return {
+            type = "table",
+            column_count = column_count,
+            name = "target_entity_table",
+            style = "filter_slot_table",
+            --- @type TargetFrameTags
+            tags = {
+                row_index = row_index,
+            },
+            children = {
+                mi_gui.templates.assembler_button(row_index, 1),
+            },
+        }
+    end,
+
+    --- @param row_index int
+    --- @return flib.GuiElemDef
     target_section = function(row_index)
         return {
             type = "frame",
+            name = "target_section_" .. row_index,
             style = "inside_shallow_frame_with_padding",
             style_mods = { horizontally_stretchable = true, vertically_stretchable = true, },
             children = {
                 {
+                    type = "flow",
+                    direction = "vertical",
+                    name = "reorder_buttons",
+                    style_mods = { vertical_spacing = 0, },
+                    children = {
+                        {
+                            type = "sprite-button",
+                            name = "move_up_button",
+                            handler = mi_gui.handlers.main.move_up,
+                            sprite = "miex_arrow_up",
+                            tooltip = { "module-inserter-ex-move-config-row-up-tooltip" },
+                            style_mods = { width = 16, height = 14, },
+                            --- @type TargetFrameTags
+                            tags = {
+                                row_index = row_index,
+                            },
+                        },
+                        {
+                            type = "sprite-button",
+                            name = "move_down_button",
+                            handler = mi_gui.handlers.main.move_down,
+                            sprite = "miex_arrow_down",
+                            tooltip = { "module-inserter-ex-move-config-row-down-tooltip" },
+                            style_mods = { width = 16, height = 14, },
+                            --- @type TargetFrameTags
+                            tags = {
+                                row_index = row_index,
+                            },
+                        }
+                    }
+                },
+                {
                     type = "frame",
-                    name = "target_frame_" .. row_index,
+                    name = "target_frame",
                     style = "slot_button_deep_frame",
                     style_mods = {
                         horizontally_stretchable = false,
@@ -143,19 +217,7 @@ mi_gui.templates = {
                         row_index = row_index,
                     },
                     children = {
-                        {
-                            type = "table",
-                            column_count = 4,
-                            name = "target_section",
-                            style = "filter_slot_table",
-                            --- @type TargetFrameTags
-                            tags = {
-                                row_index = row_index,
-                            },
-                            children = {
-                                mi_gui.templates.assembler_button(row_index, 1),
-                            },
-                        }
+                        mi_gui.templates.target_entity_table(row_index, 6),
                     }
                 }
             },
@@ -369,7 +431,12 @@ function mi_gui.create(player_index)
                                 type = "frame",
                                 style = "subheader_frame",
                                 children = {
-                                    { type = "label", style = "subheader_caption_label", caption = { "module-inserter-ex-config-frame-title" } },
+                                    {
+                                        type = "label",
+                                        style = "subheader_caption_label",
+                                        caption = { "", { "module-inserter-ex-config-frame-title" }, " [img=info]" },
+                                        tooltip = { "module-inserter-ex-module-configuration-tooltip" },
+                                    },
                                     mi_gui.templates.pushers.horizontal,
                                     {
                                         type = "sprite-button",
@@ -529,7 +596,14 @@ end
 --- @param row_index int index of the row to get
 --- @return LuaGuiElement target_section the target section for the row provided
 function mi_gui.get_mct_target_section(module_config_table, row_index)
-    return module_config_table.children[row_index * 2 + 3].children[1].target_section
+    return module_config_table.children[row_index * 2 + 3].target_frame
+end
+
+--- @param module_config_table LuaGuiElement
+--- @param row_index int index of the row to get
+--- @return LuaGuiElement target_reorder_buttons the reorder button frame for the row provided
+function mi_gui.get_mct_reorder_buttons(module_config_table, row_index)
+    return module_config_table.children[row_index * 2 + 3].reorder_buttons
 end
 
 --- @param module_config_table LuaGuiElement
@@ -598,6 +672,10 @@ function mi_gui.update_module_config_rows(player, module_config_table, config_tm
     for index, row_config in ipairs(config_tmp.rows) do
         mi_gui.update_module_config_row(player, mi_gui.get_mct_target_section(module_config_table, index),
             mi_gui.get_mct_module_set(module_config_table, index), row_config, index)
+
+        local reorder_buttons_frame = mi_gui.get_mct_reorder_buttons(module_config_table, index)
+        reorder_buttons_frame.move_up_button.enabled = (index > 1 and index < #config_tmp.rows)
+        reorder_buttons_frame.move_down_button.enabled = index < #config_tmp.rows - 1
     end
 end
 
@@ -607,40 +685,82 @@ end
 --- @param row_config RowConfig
 --- @param row_index int index of the row config being updated
 function mi_gui.update_module_config_row(player, target_section, module_set, row_config, row_index)
-    mi_gui.update_target_section(target_section, row_config.target)
+    mi_gui.update_target_section(target_section.target_entity_table, row_config.target)
 
     if not util.target_config_has_entries(row_config.target) then
-        -- No assembler, delete the module section
-        for _, elem in pairs(module_set.children) do
-            elem.destroy()
-        end
+        -- No target, delete the module section
+        module_set.clear()
     else
-        local slots = util.get_target_config_max_slots(row_config.target)
         -- Update the module section
+        local slots = util.get_target_config_max_slots(row_config.target)
         mi_gui.update_module_set(player, row_index, module_set, slots, row_config.module_configs)
     end
 end
 
---- @param gui_target_table LuaGuiElement
+--- @param target_entity_table LuaGuiElement
 --- @param target_config TargetConfig
-function mi_gui.update_target_section(gui_target_table, target_config)
-    local target_button_count = #target_config.entities + 1
-    -- Add or destroy buttons as needed
-    while #gui_target_table.children < target_button_count do
-        --- @type TargetFrameTags
-        local tags = gui_target_table.tags
-        gui.add(gui_target_table, { mi_gui.templates.assembler_button(tags.row_index, #gui_target_table.children + 1) })
+function mi_gui.update_target_section(target_entity_table, target_config)
+    target_entity_table.clear() -- TODO optimize - don't delete everything
+
+    local table_tags = target_entity_table.tags --[[@as TargetFrameTags]]
+    local row_index = table_tags.row_index
+    -- Filter out already-selected entities
+    local entity_filters = { { filter = "name", name = storage.module_entities } }
+    for _, entity in pairs(target_config.entities) do
+        table.insert(entity_filters, { filter = "name", name = entity, invert = true, mode = "and" })
     end
-    while #gui_target_table.children > target_button_count do
-        gui_target_table.children[#gui_target_table.children].destroy()
+    -- Add entity buttons as needed
+    for index, config_entity in ipairs(target_config.entities) do
+        local _, button = gui.add(target_entity_table, { mi_gui.templates.assembler_button(row_index, index, index) })
+        button.elem_value = config_entity
+        button.tooltip = util.get_localised_entity_name(config_entity, { "module-inserter-ex-choose-assembler" })
+        button.elem_filters = entity_filters
     end
 
-    for i = 1, target_button_count do
-        local child = gui_target_table.children[i]
-        local target = target_config.entities[i]
-        child.elem_value = target
-        child.tooltip = util.get_localised_entity_name(target, { "module-inserter-ex-choose-assembler" })
+    local m_button
+    _, m_button = gui.add(target_entity_table, mi_gui.templates.assembler_button(row_index, #target_config.entities + 1, #target_config.entities + 1))
+    m_button.elem_filters = entity_filters
+
+    local recipe_filters = {}
+    local categories = {}
+    for _, entity in pairs(target_config.entities) do
+        local entity_cats = prototypes.entity[entity].crafting_categories
+        if entity_cats then
+            for key, value in pairs(entity_cats) do
+                categories[key] = value
+            end
+        end
     end
+    -- Disable if entities with no recipes are selected (e.g. mining drills)
+    -- Not actually disabling the button, so the user can choose to clear an existing selection
+    local enable = not (#target_config.entities > 0 and util.table_is_empty(categories))
+    if enable then
+        for key, _ in pairs(categories) do
+            table.insert(recipe_filters, { filter = "category", category = key })
+        end
+    else
+        -- A filter that will pass nothing
+        recipe_filters = { { filter = "enabled" }, { filter = "enabled", invert = true, mode = "and" } }
+    end
+    -- Add recipe buttons as needed
+    for i, config_recipe in ipairs(target_config.recipes) do
+        local index = i + #target_config.entities + 1
+        local _, button = gui.add(target_entity_table, { mi_gui.templates.recipe_button(row_index, i) })
+        button.elem_value = config_recipe
+        button.elem_filters = recipe_filters
+        if enable then
+            button.tooltip = util.get_localised_recipe_name(config_recipe, { "module-inserter-ex-choose-recipe-with-quality" })
+        else
+            button.tooltip = { "module-inserter-ex-no-valid-recipes" }
+        end
+    end
+    local _, q_button = gui.add(target_entity_table, mi_gui.templates.recipe_button(row_index, #target_config.recipes + 1))
+    if enable then
+        q_button.tooltip = { "module-inserter-ex-choose-recipe-with-quality" }
+    else
+        q_button.tooltip = { "module-inserter-ex-no-valid-recipes" }
+    end
+    q_button.elem_filters = recipe_filters
 end
 
 --- @param player LuaPlayer
@@ -675,8 +795,7 @@ function mi_gui.update_modules(player, gui_module_row, slots, config_set, index)
     local button_table = gui_module_row.children[1]
     slots = slots or 0
     local module_list = module_config.module_list or {}
-    --- @type ModuleRowTags
-    local module_row_tags = gui_module_row.tags
+    local module_row_tags = gui_module_row.tags --[[@as ModuleRowTags]]
 
     -- Add or destroy buttons as needed
     while #button_table.children < slots do
@@ -688,7 +807,7 @@ function mi_gui.update_modules(player, gui_module_row, slots, config_set, index)
 
     for i = 1, slots do
         local child = button_table.children[i]
-        child.elem_value = module_list[i] or nil
+        child.elem_value = module_list[i] --[[@as PrototypeWithQuality]] or nil
         local tooltip = module_list[i] and prototypes.item[module_list[i].name].localised_name or
             { "module-inserter-ex-choose-module" }
         if i == 1 and player.mod_settings["module-inserter-ex-fill-all"].value then
@@ -793,6 +912,7 @@ end
 
 --- @param e MiEventInfo
 function mi_gui.open(e)
+    -- mi_gui.destroy(e.pdata, e.player) -- For debugging - uncomment to always recreate the dialog when opening
     local window = e.pdata.gui and e.pdata.gui.main and e.pdata.gui.main.window
     if not (window and window.valid) then
         mi_gui.destroy(e.pdata, e.player)
@@ -826,7 +946,7 @@ end
 
 --- @param e MiEventInfo
 function mi_gui.toggle(e)
-    local window = e.pdata.gui.main.window
+    local window = e.pdata.gui and e.pdata.gui.main and e.pdata.gui.main.window
     if window and window.valid and window.visible then
         mi_gui.close(e)
     else
@@ -881,8 +1001,7 @@ mi_gui.handlers = {
             if not element then return end
             local elem_value = element.elem_value
 
-            --- @type TargetButtonTags
-            local tags = e.event.element.tags
+            local tags = e.event.element.tags --[[@as TargetButtonTags]]
 
             local row_config = active_config.rows[tags.row_index]
             local old_value = row_config.target.entities[tags.slot_index]
@@ -891,21 +1010,27 @@ mi_gui.handlers = {
             end
 
             if elem_value then
-                for k, row in pairs(active_config.rows) do
-                    for _, target in pairs(row.target.entities) do
-                        if target and target == elem_value then
-                            element.elem_value = old_value
-                            if k == tags.row_index then
-                                e.player.print({ "module-inserter-ex-already-configured-in-this-row", prototypes.entity
-                                    [elem_value].localised_name })
-                            else
-                                e.player.print({ "module-inserter-ex-already-configured-in-another-row", prototypes
-                                    .entity[elem_value].localised_name, k })
+                -- Don't allow duplicates in the same row
+                if util.array_contains(row_config.target.entities, elem_value) then
+                    element.elem_value = old_value
+                    e.player.print({ "module-inserter-ex-already-configured-in-this-row",
+                        prototypes.entity[elem_value].localised_name })
+                    return
+                end
+                -- If no target recipe, notify of duplicates in other rows with no recipe
+                if #row_config.target.recipes == 0 then
+                    for k, row in pairs(active_config.rows) do
+                        if #row.target.recipes == 0 then
+                            for _, target in pairs(row.target.entities) do
+                                if target and target == elem_value then
+                                    e.player.print({ "module-inserter-ex-already-configured-in-another-row", prototypes
+                                        .entity[elem_value].localised_name, k })
+                                end
                             end
-                            return
                         end
                     end
                 end
+                -- TODO could add some more checks for if the entity/recipe combo appears elsewhere
                 local valid, error = util.entity_valid_for_module_set(elem_value --[[@as string]],
                     row_config.module_configs)
                 if not valid then
@@ -933,6 +1058,52 @@ mi_gui.handlers = {
         end,
 
         --- @param e MiEventInfo
+        choose_recipe = function(e)
+            local pdata = e.pdata
+            local active_config = pdata.active_config
+            local module_config_table = pdata.gui.main.module_config_table
+            if not (module_config_table and module_config_table.valid) then return end
+            local element = e.event.element
+            if not element then return end
+            local elem_value = element.elem_value --[[@as PrototypeWithQuality]]
+
+            local tags = e.event.element.tags --[[@as TargetButtonTags]]
+
+            local row_config = active_config.rows[tags.row_index]
+            local old_value = row_config.target.recipes[tags.slot_index]
+            if elem_value == old_value then
+                return
+            end
+
+            if elem_value then
+                -- Don't allow duplicates in the same row
+                if util.array_contains_recipe(row_config.target.recipes, elem_value) then
+                    element.elem_value = old_value
+                    e.player.print({ "module-inserter-ex-already-configured-in-this-row",
+                        prototypes.recipe[elem_value.name].localised_name })
+                    return
+                end
+            end
+            -- TODO check duplicates in other rows, validity
+
+
+            if elem_value then
+                row_config.target.recipes[tags.slot_index] = elem_value --[[@as PrototypeWithQuality]]
+            else
+                table.remove(row_config.target.recipes, tags.slot_index)
+            end
+
+            local do_scroll = elem_value and tags.row_index == #active_config.rows
+
+            util.normalize_preset_config(active_config)
+
+            mi_gui.update_module_config_rows(e.player, e.pdata.gui.main.module_config_table, active_config)
+            if do_scroll then
+                e.pdata.gui.main.scroll.scroll_to_bottom()
+            end
+        end,
+
+        --- @param e MiEventInfo
         choose_module = function(e)
             local element = e.event.element
             if not element then return end
@@ -945,8 +1116,7 @@ mi_gui.handlers = {
             local module_config_set
             --- @type TargetConfig
             local target_config
-            --- @type ModuleButtonTags
-            local module_button_tags = element.tags
+            local module_button_tags = element.tags --[[@as ModuleButtonTags]]
             local slot = module_button_tags.slot_index
             local is_default_config = (module_button_tags.row_index == 0)
             local row_config = nil
@@ -967,7 +1137,7 @@ mi_gui.handlers = {
                 local valid, error = util.module_valid_for_config(element.elem_value.name, target_config)
                 if not valid then
                     e.player.print(error)
-                    element.elem_value = module_config.module_list[slot] or nil
+                    element.elem_value = module_config.module_list[slot] --[[@as PrototypeWithQuality]] or nil
                     return
                 end
             end
@@ -996,8 +1166,7 @@ mi_gui.handlers = {
         end,
         --- @param e MiEventInfo
         add_module_row = function(e)
-            --- @type ModuleRowTags
-            local module_row_tags = e.event.element.parent.tags
+            local module_row_tags = e.event.element.parent.tags --[[@as ModuleRowTags]]
             local row_index = module_row_tags.row_index
             --- @type ModuleConfigSet
             local config_set
@@ -1018,8 +1187,7 @@ mi_gui.handlers = {
         end,
         --- @param e MiEventInfo
         delete_module_row = function(e)
-            --- @type ModuleRowTags
-            local module_row_tags = e.event.element.parent.tags
+            local module_row_tags = e.event.element.parent.tags --[[@as ModuleRowTags]]
             local row_index = module_row_tags.row_index
             --- @type ModuleConfigSet
             local config_set
@@ -1037,6 +1205,50 @@ mi_gui.handlers = {
             end
             table.remove(config_set.configs, module_row_tags.module_row_index)
             mi_gui.update_module_set(e.player, row_index, gui_module_set, slots, config_set)
+        end,
+
+        --- @param e MiEventInfo
+        move_up = function(e)
+            local pdata = e.pdata
+            local module_row_tags = e.event.element.tags --[[@as TargetFrameTags]]
+            local index = module_row_tags.row_index
+
+            if index == 1 or index > #pdata.active_config.rows then return end
+
+            local config_row = pdata.active_config.rows[index]
+            if not config_row then return end
+
+            table.remove(pdata.active_config.rows, index)
+
+            if e.event.shift then
+                table.insert(pdata.active_config.rows, 1, config_row)
+            else
+                table.insert(pdata.active_config.rows, index - 1, config_row)
+            end
+
+            mi_gui.update_module_config_table(e.player, e.pdata)
+        end,
+
+        --- @param e MiEventInfo
+        move_down = function(e)
+            local pdata = e.pdata
+            local module_row_tags = e.event.element.tags --[[@as TargetFrameTags]]
+            local index = module_row_tags.row_index
+
+            if index >= #pdata.active_config.rows - 1 then return end
+
+            local config_row = pdata.active_config.rows[index]
+            if not config_row then return end
+
+            table.remove(pdata.active_config.rows, index)
+
+            if e.event.shift then
+                table.insert(pdata.active_config.rows, #pdata.active_config.rows, config_row)
+            else
+                table.insert(pdata.active_config.rows, index + 1, config_row)
+            end
+
+            mi_gui.update_module_config_table(e.player, e.pdata)
         end,
     },
     presets = {
@@ -1064,8 +1276,7 @@ mi_gui.handlers = {
         --- @param e MiEventInfo
         move_up = function(e)
             local pdata = e.pdata
-            --- @type PresetRowTags
-            local tags = e.event.element.parent.parent.tags
+            local tags = e.event.element.parent.parent.tags --[[@as PresetRowTags]]
             local index = tags.preset_index
 
             if index == 1 then return end
@@ -1087,8 +1298,7 @@ mi_gui.handlers = {
         --- @param e MiEventInfo
         move_down = function(e)
             local pdata = e.pdata
-            --- @type PresetRowTags
-            local tags = e.event.element.parent.parent.tags
+            local tags = e.event.element.parent.parent.tags --[[@as PresetRowTags]]
             local index = tags.preset_index
 
             if index == #pdata.saved_presets then return end
@@ -1110,8 +1320,7 @@ mi_gui.handlers = {
         --- @param e MiEventInfo
         load = function(e)
             local pdata = e.pdata
-            --- @type PresetRowTags
-            local tags = e.event.element.parent.tags
+            local tags = e.event.element.parent.tags --[[@as PresetRowTags]]
             local index = tags.preset_index
 
             local preset = pdata.saved_presets[index]
@@ -1129,8 +1338,7 @@ mi_gui.handlers = {
 
         --- @param e MiEventInfo
         export = function(e)
-            --- @type PresetRowTags
-            local tags = e.event.element.parent.tags
+            local tags = e.event.element.parent.tags --[[@as PresetRowTags]]
             local config = e.pdata.saved_presets[tags.preset_index]
             if not config then return end
             mi_gui.create_import_window(e.pdata, e.player, helpers.table_to_json(config))
@@ -1140,8 +1348,7 @@ mi_gui.handlers = {
             if #e.pdata.saved_presets <= 1 then
                 return
             end
-            --- @type PresetRowTags
-            local tags = e.event.element.parent.tags
+            local tags = e.event.element.parent.tags --[[@as PresetRowTags]]
             local update_selection = (e.pdata.saved_presets[tags.preset_index] == e.pdata.active_config)
             table.remove(e.pdata.saved_presets, tags.preset_index)
             if update_selection then
@@ -1157,8 +1364,7 @@ mi_gui.handlers = {
             if not parent then return end
             --- @type LuaGuiElement
             local textfield = parent.rename_textfield
-            --- @type PresetRowTags
-            local tags = parent.tags
+            local tags = parent.tags --[[@as PresetRowTags]]
             local preset = e.pdata.saved_presets[tags.preset_index]
             if e.pdata.naming == preset then
                 -- Confirm the rename
