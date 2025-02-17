@@ -195,7 +195,7 @@ end
 
 ---@param e EventData.on_player_alt_selected_area
 local function on_player_alt_selected_area(e)
-    if not e.item == "module-inserter-ex" then return end
+    if e.item ~= "module-inserter-ex" then return end
     local empty_config = types.make_module_config()
     for _, entity in pairs(e.entities) do
         util.create_request_proxy(entity, empty_config, false)
