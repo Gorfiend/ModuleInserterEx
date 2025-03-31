@@ -388,12 +388,10 @@ local migrations = {
 script.on_configuration_changed(function(e)
     create_lookup_tables()
     remove_invalid_items()
-    if migration.on_config_changed(e, migrations) then
-        -- Always remove/rebuild guis
-        for pi, pdata in pairs(storage._pdata) do
-            mi_gui.destroy(pdata, game.get_player(pi) --[[@as LuaPlayer]])
-            mi_gui.create(pi)
-        end
+    -- Always remove/rebuild guis
+    for pi, pdata in pairs(storage._pdata) do
+        mi_gui.destroy(pdata, game.get_player(pi) --[[@as LuaPlayer]])
+        mi_gui.create(pi)
     end
     update_on_tick_listener(true)
 end)

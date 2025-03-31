@@ -1,4 +1,9 @@
 ---------------------------------------------------------------------------------------------------
+Version: 7.2.2
+Date: 2025-03-31
+  Bugfixes:
+    - Fix a possible issue related to a base game update that caused various things in the configuration gui to stop working
+---------------------------------------------------------------------------------------------------
 Version: 7.2.1
 Date: 2025-02-18
   Changes:
