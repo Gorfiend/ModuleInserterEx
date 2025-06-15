@@ -221,17 +221,9 @@ end
 local function on_player_reverse_selected_area(e)
     local player_index = e.player_index
     if e.item ~= "module-inserter-ex" or not player_index then return end
-
-    local player = game.get_player(player_index)
-    if not player then return end
-
     local empty_config = types.make_module_config()
     for _, entity in pairs(e.entities) do
-        if entity.type == "entity-ghost" then
-            entity.insert_plan = {}
-        else
-            util.create_request_proxy(entity, empty_config, true)
-        end
+        util.create_request_proxy(entity, empty_config, true)
     end
 end
 

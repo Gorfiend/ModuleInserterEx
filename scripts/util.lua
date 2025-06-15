@@ -3,11 +3,11 @@ local types = require("scripts.types")
 local util = {}
 
 util.inventory_defines_map = {
-    ["furnace"] = defines.inventory.furnace_modules,
-    ["assembling-machine"] = defines.inventory.assembling_machine_modules,
+    ["furnace"] = defines.inventory.crafter_modules,
+    ["assembling-machine"] = defines.inventory.crafter_modules,
     ["lab"] = defines.inventory.lab_modules,
     ["mining-drill"] = defines.inventory.mining_drill_modules,
-    ["rocket-silo"] = defines.inventory.rocket_silo_modules,
+    ["rocket-silo"] = defines.inventory.crafter_modules,
     ["beacon"] = defines.inventory.beacon_modules,
 }
 
@@ -171,6 +171,26 @@ local function createBlueprintInsertPlan(module, stack_index, inventory_define)
     }
 end
 
+--- Removes planes in the provided array that have an inventory target matching the provided define
+--- Allows removing module requests, while leaving requests for ingredients or other items
+--- @param plans BlueprintInsertPlan[]
+--- @param inventory_define defines.inventory
+local function removePlansWithInventoryTarget(plans, inventory_define)
+    for ip = #plans, 1, -1 do
+        local in_inv = plans[ip].items.in_inventory
+        if in_inv then
+            for ii = #in_inv, 1, -1 do
+                if in_inv[ii].inventory == inventory_define then
+                    table.remove(in_inv, ii)
+                end
+            end
+        end
+        if #in_inv == 0 then
+            table.remove(plans, ip)
+        end
+    end
+end
+
 --- Process data to create logistic requests to insert/remove modules
 --- @param entity LuaEntity -- Already checked to be valid
 --- @param module_config ModuleConfig
@@ -180,16 +200,17 @@ function util.create_request_proxy(entity, module_config, clear)
 
     if entity.type == "entity-ghost" then
         local inventory_define = util.inventory_defines_map[entity.ghost_type]
-        local module_requests = {}
+        local insert_plan = entity.insert_plan
+        removePlansWithInventoryTarget(insert_plan, inventory_define)
         local slots = storage.name_to_slot_count[entity.ghost_name]
         if slots then
             for i = 1, slots do
                 local insert_module = modules[i]
                 if insert_module then
-                    module_requests[i] = createBlueprintInsertPlan(insert_module, i, inventory_define)
+                    table.insert(insert_plan, createBlueprintInsertPlan(insert_module, i, inventory_define))
                 end
             end
-            entity.insert_plan = module_requests
+            entity.insert_plan = insert_plan
         end
         return
     end
@@ -205,20 +226,11 @@ function util.create_request_proxy(entity, module_config, clear)
         return
     end
 
-    -- Remove any existing requests
-    local proxies = entity.surface.find_entities_filtered({
-        name = "item-request-proxy",
-        force = entity.force,
-        position = entity.position
-    })
-    for _, proxy in pairs(proxies) do
-        if proxy.proxy_target == entity then
-            proxy.destroy({ raise_destroy = true })
-        end
-    end
-
+    -- Determine what module additions/removals are needed
+    ---@type BlueprintInsertPlan[]
     local module_requests = {}
-    local removal_plan = {}
+    ---@type BlueprintInsertPlan[]
+    local new_removal_plan = {}
     for i = 1, #module_inventory do
         local stack = module_inventory[i]
         local target = modules[i]
@@ -238,27 +250,55 @@ function util.create_request_proxy(entity, module_config, clear)
             module_requests[i] = createBlueprintInsertPlan(target, i, inventory_define)
         end
         if need_to_remove and stack.valid_for_read then
-            removal_plan[i] = createBlueprintInsertPlan({ name = stack.name, quality = stack.quality.name }, i, inventory_define)
+            new_removal_plan[i] = createBlueprintInsertPlan({ name = stack.name, quality = stack.quality.name }, i, inventory_define)
         end
     end
-    if next(module_requests) == nil and next(removal_plan) == nil then
-        -- Nothing needs to change, so skip creating anything
+
+    local proxy = entity.item_request_proxy
+    if next(module_requests) == nil and next(new_removal_plan) == nil then
+        -- Nothing needs to change, so skip creating anything, but remove any existing plans
+        if proxy then
+            local insert_plan = proxy.insert_plan
+            removePlansWithInventoryTarget(insert_plan, inventory_define)
+            proxy.insert_plan = insert_plan
+            local removal_plan = proxy.removal_plan
+            removePlansWithInventoryTarget(removal_plan, inventory_define)
+            proxy.removal_plan = removal_plan
+        end
         return
     end
 
-    local create_info = {
-        name = "item-request-proxy",
-        position = entity.position,
-        force = entity.force,
-        target = entity,
-        modules = module_requests,
-        raise_built = true
-    }
-    if next(removal_plan) ~= nil then
-        create_info.removal_plan = removal_plan
-    end
+    if proxy then
+        -- Remove any existing module requests/removals, and add our requests/removals
+        local insert_plan = proxy.insert_plan
+        removePlansWithInventoryTarget(insert_plan, inventory_define)
+        for _, to_add in pairs(module_requests) do
+            table.insert(insert_plan, to_add)
+        end
+        proxy.insert_plan = insert_plan
 
-    entity.surface.create_entity(create_info)
+        local removal_plan = proxy.removal_plan
+        removePlansWithInventoryTarget(removal_plan, inventory_define)
+        for _, to_add in pairs(new_removal_plan) do
+            table.insert(removal_plan, to_add)
+        end
+        proxy.removal_plan = removal_plan
+    else
+        -- Else make a new proxy with our requests/removals
+        local create_info = {
+            name = "item-request-proxy",
+            position = entity.position,
+            force = entity.force,
+            target = entity,
+            modules = module_requests,
+            raise_built = true
+        }
+        if next(new_removal_plan) ~= nil then
+            create_info.removal_plan = new_removal_plan
+        end
+
+        entity.surface.create_entity(create_info)
+    end
 end
 
 --- @param entity_name string?
