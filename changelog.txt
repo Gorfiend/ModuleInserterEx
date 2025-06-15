@@ -1,6 +1,6 @@
 ---------------------------------------------------------------------------------------------------
 Version: 7.2.3
-Date: ????
+Date: 2025-06-15
   Bugfixes:
     - Preserve existing non-module requests (e.g. ingredient requests) when applying a module config to a machine
 ---------------------------------------------------------------------------------------------------
