@@ -238,11 +238,19 @@ local function create_lookup_tables()
     storage.max_slot_count = 0
     local i = 1
     for name, prototype in pairs(prototypes.entity) do
-        if prototype.module_inventory_size and prototype.module_inventory_size > 0 and not se_grounded_entity(name) then
-            storage.name_to_slot_count[name] = prototype.module_inventory_size
-            storage.max_slot_count = math.max(storage.max_slot_count, prototype.module_inventory_size)
-            storage.module_entities[i] = name
-            i = i + 1
+        local proto_inv_size = prototype.module_inventory_size
+        if proto_inv_size and proto_inv_size > 0 and not se_grounded_entity(name) then
+            -- TODO quick fix to prevent terrible performance/crashes due to a huge number of slots
+            -- Motivated by the "TCN-beacon" from Factorio-Tiberium, that has 32768 slots
+            -- That causes building the gui for that many slots (in the default set) hang the game
+            -- A more robust solution would be to adjust the module set gui when there's a ton of slots
+            -- Could do something similar to FactoryPlanner, where you specify module types and quantities
+            if proto_inv_size <= 256 then
+                storage.name_to_slot_count[name] = proto_inv_size
+                storage.max_slot_count = math.max(storage.max_slot_count, proto_inv_size)
+                storage.module_entities[i] = name
+                i = i + 1
+            end
         end
     end
 end
