@@ -1,4 +1,9 @@
 ---------------------------------------------------------------------------------------------------
+Version: 7.2.4
+Date: 2025-09-11
+  Bugfixes:
+    - Fix a hang when there is an entity with a huge number of module slots (for now, simply ignoring such entities)
+---------------------------------------------------------------------------------------------------
 Version: 7.2.3
 Date: 2025-06-15
   Bugfixes:
