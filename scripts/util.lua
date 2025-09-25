@@ -359,9 +359,19 @@ end
 --- @param slots int Number of slots in each row
 --- @param module_config ModuleConfig
 function util.normalize_module_config(slots, module_config)
-    -- Clear slots that are not used anymore
-    for slot_index = slots + 1, storage.max_slot_count do
-        module_config.module_list[slot_index] = nil
+    local current_size = #module_config.module_list
+    if current_size > 256 then
+        -- Special case in case theres a config with tons of slots that need to be removed
+        local old_list = module_config.module_list
+        module_config.module_list = {}
+        for slot_index = 1, slots do
+            module_config.module_list[slot_index] = old_list[slot_index]
+        end
+    else
+        -- Clear slots that are not used anymore
+        for slot_index = slots + 1, current_size do
+            module_config.module_list[slot_index] = nil
+        end
     end
     -- Make sure it maps each slot
     for slot_index = 1, slots do

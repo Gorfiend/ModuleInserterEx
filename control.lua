@@ -256,10 +256,12 @@ local function create_lookup_tables()
 end
 
 local function remove_invalid_items()
-    local items = prototypes.item
-    local entities = prototypes.entity
     local removed_entities = {}
+    local removed_recipes = {}
     local removed_modules = {}
+    local removed_qualities = {}
+    -- Possibly could take the first item from the quality prototypes instead of nil?
+    local replacement_quality = prototypes.quality["normal"] and "normal" or nil
 
     --- @param preset PresetConfig
     local function _clean(preset)
@@ -267,9 +269,12 @@ local function remove_invalid_items()
         local function _clean_module_config(module_config)
             for _, mc in pairs(module_config.configs) do
                 for i, m in pairs(mc.module_list) do
-                    if m and not items[m.name] then
-                        mc.module_list[i] = nil
+                    if m and not prototypes.item[m.name] then
                         removed_modules[m.name] = true
+                        mc.module_list[i] = nil
+                    elseif m and m.quality and not prototypes.quality[m.quality] then
+                        removed_qualities[m.quality] = true
+                        mc.module_list[i].quality = replacement_quality
                     end
                 end
             end
@@ -277,9 +282,18 @@ local function remove_invalid_items()
         _clean_module_config(preset.default)
         for _, row in pairs(preset.rows) do
             for i, target in pairs(row.target.entities) do
-                if target and not entities[target] then
+                -- Checks both if an entity was removed, or if its module slots were removed
+                if target and not storage.name_to_slot_count[target] then
                     removed_entities[target] = true
                     row.target.entities[i] = nil
+                end
+            end
+            if row.target.recipes then
+                for i, target in pairs(row.target.recipes) do
+                    if target and not prototypes.recipe[target.name] then
+                        removed_recipes[target.name] = true
+                        row.target.recipes[i] = nil
+                    end
                 end
             end
             _clean_module_config(row.module_configs)
@@ -295,8 +309,14 @@ local function remove_invalid_items()
     for k in pairs(removed_entities) do
         log("Module Inserter: Removed Entity " .. k .. " from all configurations")
     end
+    for k in pairs(removed_recipes) do
+        log("Module Inserter: Removed Recipe " .. k .. " from all configurations")
+    end
     for k in pairs(removed_modules) do
         log("Module Inserter: Removed module " .. k .. " from all configurations")
+    end
+    for k in pairs(removed_qualities) do
+        log("Module Inserter: Removed Quality " .. k .. " from all configurations")
     end
 end
 
@@ -348,33 +368,34 @@ local function normalize_all_presets()
     end
 end
 
---- @type MigrationsTable
-local migrations = {
-    ["7.0.0"] = function()
-        -- Major update breaking compatibility - remove all storage and existing gui
-        for _, player in pairs(game.players) do
-            -- player.gui.top.mod_gui_top_frame.mod_gui_inner_frame.module_inserter_config_button
-            local pdata = storage._pdata[player.index]
-            if player.gui.top and player.gui.top.mod_gui_top_frame and player.gui.top.mod_gui_top_frame.mod_gui_inner_frame then
-                local frame = player.gui.top.mod_gui_top_frame.mod_gui_inner_frame
-                if frame.module_inserter_config_button and frame.module_inserter_config_button.valid then
-                    frame.module_inserter_config_button.destroy()
-                end
-            end
-            if pdata.gui then
-                if pdata.gui.main.window and pdata.gui.main.window.valid then
-                    pdata.gui.main.window.destroy()
-                end
-                if pdata.gui.import and pdata.gui.import.window and pdata.gui.import.window.valid then
-                    pdata.gui.import.window.destroy()
-                end
+local function migrate_to_v_7()
+    -- Major update breaking compatibility - remove all storage and existing gui
+    for _, player in pairs(game.players) do
+        -- player.gui.top.mod_gui_top_frame.mod_gui_inner_frame.module_inserter_config_button
+        local pdata = storage._pdata[player.index]
+        if player.gui.top and player.gui.top.mod_gui_top_frame and player.gui.top.mod_gui_top_frame.mod_gui_inner_frame then
+            local frame = player.gui.top.mod_gui_top_frame.mod_gui_inner_frame
+            if frame.module_inserter_config_button and frame.module_inserter_config_button.valid then
+                frame.module_inserter_config_button.destroy()
             end
         end
-        storage = {}
-        create_lookup_tables()
-        init_global()
-        init_players()
-    end,
+        if pdata.gui then
+            if pdata.gui.main.window and pdata.gui.main.window.valid then
+                pdata.gui.main.window.destroy()
+            end
+            if pdata.gui.import and pdata.gui.import.window and pdata.gui.import.window.valid then
+                pdata.gui.import.window.destroy()
+            end
+        end
+    end
+    storage = {}
+    create_lookup_tables()
+    init_global()
+    init_players()
+end
+
+--- @type MigrationsTable
+local migrations = {
     ["7.0.4"] = function()
         -- Fix up the category definitions
         normalize_all_presets()
@@ -386,8 +407,17 @@ local migrations = {
 }
 
 script.on_configuration_changed(function(e)
-    create_lookup_tables()
+    -- Special handling to do the major migration to v 7 first (nukes all player data)
+    local changes = e.mod_changes[script.mod_name]
+    local old_version = changes and changes.old_version
+    if old_version and migration.is_newer_version(old_version, "7.0.0") then
+        migrate_to_v_7()
+    else
+        create_lookup_tables()
+    end
+
     remove_invalid_items()
+    migration.on_config_changed(e, migrations)
     -- Always remove/rebuild guis
     for pi, pdata in pairs(storage._pdata) do
         mi_gui.destroy(pdata, game.get_player(pi) --[[@as LuaPlayer]])

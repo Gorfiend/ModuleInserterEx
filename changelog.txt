@@ -1,7 +1,8 @@
 ---------------------------------------------------------------------------------------------------
 Version: 7.2.5
 Date: ????
-  Changes:
+  Bugfixes:
+    - Fix various issues and crashes with migrations from older versions, or when removing certain mods.
 ---------------------------------------------------------------------------------------------------
 Version: 7.2.4
 Date: 2025-09-11
