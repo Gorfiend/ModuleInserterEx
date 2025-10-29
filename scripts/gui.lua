@@ -5,11 +5,12 @@ local import_export = require("scripts.import-export")
 local types = require("scripts.types")
 local util = require("scripts.util")
 
-local TARGET_SECTION_WIDTH = 276
+local TARGET_SECTION_WIDTH = 320
 local MODULE_SET_WIDTH = 440
 local PRESET_BUTTON_FIELD_WIDTH = 200
 
 local mi_gui = {}
+
 mi_gui.templates = {
     --- @param row_index int index of the config row this is part of
     --- @param config_index int index of this entity in the target.entities array
@@ -177,6 +178,10 @@ mi_gui.templates = {
             name = "target_section_" .. row_index,
             style = "inside_shallow_frame_with_padding",
             style_mods = { horizontally_stretchable = true, vertically_stretchable = true, },
+            --- @type TargetFrameTags
+            tags = {
+                row_index = row_index,
+            },
             children = {
                 {
                     type = "flow",
@@ -191,10 +196,6 @@ mi_gui.templates = {
                             sprite = "miex_arrow_up",
                             tooltip = { "module-inserter-ex-move-config-row-up-tooltip" },
                             style_mods = { width = 16, height = 14, },
-                            --- @type TargetFrameTags
-                            tags = {
-                                row_index = row_index,
-                            },
                         },
                         {
                             type = "sprite-button",
@@ -203,28 +204,76 @@ mi_gui.templates = {
                             sprite = "miex_arrow_down",
                             tooltip = { "module-inserter-ex-move-config-row-down-tooltip" },
                             style_mods = { width = 16, height = 14, },
-                            --- @type TargetFrameTags
-                            tags = {
-                                row_index = row_index,
-                            },
-                        }
-                    }
+                        },
+                    },
                 },
                 {
-                    type = "frame",
-                    name = "target_frame",
-                    style = "slot_button_deep_frame",
-                    style_mods = {
-                        horizontally_stretchable = false,
-                    },
-                    --- @type TargetFrameTags
-                    tags = {
-                        row_index = row_index,
-                    },
+                    type = "sprite-button",
+                    name = "show_details_button",
+                    handler = mi_gui.handlers.main.show_target_details,
+                    tooltip = { "module-inserter-ex-show-full-target-config" },
+                    sprite = "utility/list_view",
+                    style = "tool_button",
+                    style_mods = { margin = 6, },
+                },
+                {
+                    type = "flow",
+                    name = "target_flow",
+                    direction = "vertical",
                     children = {
-                        mi_gui.templates.target_entity_table(row_index, 6),
-                    }
-                }
+                        {
+                            type = "frame",
+                            name = "target_frame",
+                            style = "slot_button_deep_frame",
+                            style_mods = {
+                                horizontally_stretchable = false,
+                            },
+                            children = {
+                                mi_gui.templates.target_entity_table(row_index, 6),
+                            },
+                        },
+                        {
+                            type = "flow",
+                            name = "slot_count_flow",
+                            visible = false,
+                            style_mods = {
+                                vertical_align = "center",
+                            },
+                            children = {
+                                {
+                                    type = "checkbox",
+                                    name = "checkbox",
+                                    caption = { "module-inserter-ex-target-config-slots" },
+                                    handler = { [defines.events.on_gui_checked_state_changed] = mi_gui.handlers.main.slot_count_check },
+                                    state = false,
+                                },
+                                {
+                                    type = "slider",
+                                    name = "slider",
+                                    handler = mi_gui.handlers.main.set_slot_count_slider,
+                                    minimum_value = storage.min_slot_count,
+                                    maximum_value = storage.max_slot_count,
+                                    style = "notched_slider",
+                                    style_mods = {
+                                        horizontally_stretchable = true,
+                                        minimal_width = 100,
+                                    },
+                                },
+                                {
+                                    type = "textfield",
+                                    name = "textfield",
+                                    handler = { [defines.events.on_gui_confirmed] = mi_gui.handlers.main.set_slot_count_field, },
+                                    numeric = true,
+                                    allow_decimal = false,
+                                    allow_negative = false,
+                                    style_mods = {
+                                        width = 50,
+                                    },
+                                },
+                            },
+                        },
+                    },
+                },
             },
         }
     end,
@@ -601,7 +650,7 @@ end
 --- @param row_index int index of the row to get
 --- @return LuaGuiElement target_section the target section for the row provided
 function mi_gui.get_mct_target_section(module_config_table, row_index)
-    return module_config_table.children[row_index * 2 + 3].target_frame
+    return module_config_table.children[row_index * 2 + 3]
 end
 
 --- @param module_config_table LuaGuiElement
@@ -690,7 +739,7 @@ end
 --- @param row_config RowConfig
 --- @param row_index int index of the row config being updated
 function mi_gui.update_module_config_row(player, target_section, module_set, row_config, row_index)
-    mi_gui.update_target_section(target_section.target_entity_table, row_config.target)
+    mi_gui.update_target_section(target_section, row_config.target)
 
     if not util.target_config_has_entries(row_config.target) then
         -- No target, delete the module section
@@ -702,12 +751,37 @@ function mi_gui.update_module_config_row(player, target_section, module_set, row
     end
 end
 
---- @param target_entity_table LuaGuiElement
+--- @param slot_count_flow LuaGuiElement
 --- @param target_config TargetConfig
-function mi_gui.update_target_section(target_entity_table, target_config)
+function mi_gui.update_target_slot_count(slot_count_flow, target_config)
+    local enabled = target_config.slot_count ~= nil
+    slot_count_flow.visible = enabled or target_config.show_details
+    slot_count_flow.checkbox.state = enabled
+    slot_count_flow.slider.slider_value = target_config.slot_count or storage.min_slot_count
+    slot_count_flow.slider.enabled = enabled
+    slot_count_flow.textfield.text = tostring(target_config.slot_count or storage.min_slot_count)
+    slot_count_flow.textfield.enabled = enabled
+end
+
+--- @param target_section LuaGuiElement
+--- @param target_config TargetConfig
+function mi_gui.update_target_section(target_section, target_config)
+    local target_entity_table = target_section.target_flow.target_frame.target_entity_table
     target_entity_table.clear() -- TODO optimize - don't delete everything
 
-    local table_tags = target_entity_table.tags --[[@as TargetFrameTags]]
+    target_section.show_details_button.toggled = target_config.show_details
+
+    mi_gui.update_target_slot_count(target_section.target_flow.slot_count_flow, target_config)
+
+    if not target_config.show_details and #target_config.entities == 0 and #target_config.recipes == 0 and util.target_config_has_entries(target_config) then
+        -- Hides the machine/recipe table when not showing details and a different target has been set
+        target_entity_table.visible = false
+        return
+    else
+        target_entity_table.visible = true
+    end
+
+    local table_tags = target_entity_table.parent.parent.parent.tags --[[@as TargetFrameTags]]
     local row_index = table_tags.row_index
     -- Filter out already-selected entities
     local entity_filters = { { filter = "name", name = storage.module_entities } }
@@ -727,7 +801,8 @@ function mi_gui.update_target_section(target_entity_table, target_config)
     end
 
     local m_button
-    _, m_button = gui.add(target_entity_table, mi_gui.templates.assembler_button(row_index, #target_config.entities + 1, #target_config.entities + 1))
+    _, m_button = gui.add(target_entity_table,
+        mi_gui.templates.assembler_button(row_index, #target_config.entities + 1, #target_config.entities + 1))
     m_button.elem_filters = entity_filters
 
     local recipe_filters = {}
@@ -747,6 +822,7 @@ function mi_gui.update_target_section(target_entity_table, target_config)
         for key, _ in pairs(categories) do
             table.insert(recipe_filters, { filter = "category", category = key })
         end
+        -- Can't filter out already-selected recipes, because the "name" filter isn't supported
     else
         -- A filter that will pass nothing
         recipe_filters = { { filter = "enabled" }, { filter = "enabled", invert = true, mode = "and" } }
@@ -758,12 +834,14 @@ function mi_gui.update_target_section(target_entity_table, target_config)
         button.elem_value = config_recipe
         button.elem_filters = recipe_filters
         if enable then
-            button.tooltip = util.get_localised_recipe_name(config_recipe, { "module-inserter-ex-choose-recipe-with-quality" })
+            button.tooltip = util.get_localised_recipe_name(config_recipe,
+                { "module-inserter-ex-choose-recipe-with-quality" })
         else
             button.tooltip = { "module-inserter-ex-no-valid-recipes" }
         end
     end
-    local _, q_button = gui.add(target_entity_table, mi_gui.templates.recipe_button(row_index, #target_config.recipes + 1))
+    local _, q_button = gui.add(target_entity_table,
+        mi_gui.templates.recipe_button(row_index, #target_config.recipes + 1))
     if enable then
         q_button.tooltip = { "module-inserter-ex-choose-recipe-with-quality" }
     else
@@ -1098,14 +1176,9 @@ mi_gui.handlers = {
                 table.remove(row_config.target.entities, tags.slot_index)
             end
 
-            local do_scroll = elem_value and tags.row_index == #active_config.rows
-
             util.normalize_preset_config(active_config)
 
             mi_gui.update_module_config_rows(e.player, e.pdata.gui.main.module_config_table, active_config)
-            if do_scroll then
-                e.pdata.gui.main.scroll.scroll_to_bottom()
-            end
         end,
 
         --- @param e MiEventInfo
@@ -1144,14 +1217,9 @@ mi_gui.handlers = {
                 table.remove(row_config.target.recipes, tags.slot_index)
             end
 
-            local do_scroll = elem_value and tags.row_index == #active_config.rows
-
             util.normalize_preset_config(active_config)
 
             mi_gui.update_module_config_rows(e.player, e.pdata.gui.main.module_config_table, active_config)
-            if do_scroll then
-                e.pdata.gui.main.scroll.scroll_to_bottom()
-            end
         end,
 
         --- @param e MiEventInfo
@@ -1192,8 +1260,7 @@ mi_gui.handlers = {
                     return
                 end
             end
-            module_config.module_list[slot] = util.normalize_id_quality_pair(element
-                .elem_value --[[@as ItemIDAndQualityIDPair]])
+            module_config.module_list[slot] = element.elem_value --[[@as BlueprintItemIDAndQualityIDPair]]
 
             if slot == 1 and e.player.mod_settings["module-inserter-ex-fill-all"].value then
                 for i = 2, slot_count do
@@ -1261,20 +1328,20 @@ mi_gui.handlers = {
         --- @param e MiEventInfo
         move_up = function(e)
             local pdata = e.pdata
-            local module_row_tags = e.event.element.tags --[[@as TargetFrameTags]]
+            local module_row_tags = e.event.element.parent.parent.tags --[[@as TargetFrameTags]]
             local index = module_row_tags.row_index
 
             if index == 1 or index > #pdata.active_config.rows then return end
 
-            local config_row = pdata.active_config.rows[index]
-            if not config_row then return end
+            local row_config = pdata.active_config.rows[index]
+            if not row_config then return end
 
             table.remove(pdata.active_config.rows, index)
 
             if e.event.shift then
-                table.insert(pdata.active_config.rows, 1, config_row)
+                table.insert(pdata.active_config.rows, 1, row_config)
             else
-                table.insert(pdata.active_config.rows, index - 1, config_row)
+                table.insert(pdata.active_config.rows, index - 1, row_config)
             end
 
             mi_gui.update_module_config_table(e.player, e.pdata)
@@ -1283,24 +1350,105 @@ mi_gui.handlers = {
         --- @param e MiEventInfo
         move_down = function(e)
             local pdata = e.pdata
-            local module_row_tags = e.event.element.tags --[[@as TargetFrameTags]]
+            local module_row_tags = e.event.element.parent.parent.tags --[[@as TargetFrameTags]]
             local index = module_row_tags.row_index
 
             if index >= #pdata.active_config.rows - 1 then return end
 
-            local config_row = pdata.active_config.rows[index]
-            if not config_row then return end
+            local row_config = pdata.active_config.rows[index]
+            if not row_config then return end
 
             table.remove(pdata.active_config.rows, index)
 
             if e.event.shift then
-                table.insert(pdata.active_config.rows, #pdata.active_config.rows, config_row)
+                table.insert(pdata.active_config.rows, #pdata.active_config.rows, row_config)
             else
-                table.insert(pdata.active_config.rows, index + 1, config_row)
+                table.insert(pdata.active_config.rows, index + 1, row_config)
             end
 
             mi_gui.update_module_config_table(e.player, e.pdata)
         end,
+
+        --- @param e MiEventInfo
+        show_target_details = function(e)
+            local pdata = e.pdata
+            local target_section = e.event.element.parent
+            if not target_section then return end
+            local module_row_tags = target_section.tags --[[@as TargetFrameTags]]
+            local index = module_row_tags.row_index
+
+            local row_config = pdata.active_config.rows[index]
+            if not row_config then return end
+
+            row_config.target.show_details = not row_config.target.show_details
+            mi_gui.update_target_section(target_section, row_config.target)
+        end,
+
+        --- @param e MiEventInfo
+        slot_count_check = function(e)
+            local pdata = e.pdata
+            local active_config = pdata.active_config
+            local target_section = e.event.element.parent.parent.parent
+            if not target_section then return end
+            local module_row_tags = target_section.tags --[[@as TargetFrameTags]]
+            local index = module_row_tags.row_index
+
+            local row_config = active_config.rows[index]
+            if not row_config then return end
+
+            if row_config.target.slot_count then
+                row_config.target.slot_count = nil
+            else
+                row_config.target.slot_count = storage.min_slot_count
+            end
+
+            util.normalize_preset_config(active_config)
+
+            mi_gui.update_module_config_rows(e.player, pdata.gui.main.module_config_table, active_config)
+        end,
+
+        --- @param e MiEventInfo
+        set_slot_count_slider = function(e)
+            local pdata = e.pdata
+            local target_section = e.event.element.parent.parent.parent
+            if not target_section then return end
+            local module_row_tags = target_section.tags --[[@as TargetFrameTags]]
+            local index = module_row_tags.row_index
+
+            local row_config = pdata.active_config.rows[index]
+            if not row_config then return end
+
+            row_config.target.slot_count = e.event.element.slider_value
+            util.normalize_preset_config(pdata.active_config)
+
+            local module_config_table = pdata.gui.main.module_config_table
+            mi_gui.update_module_config_row(e.player, mi_gui.get_mct_target_section(module_config_table, index),
+                mi_gui.get_mct_module_set(module_config_table, index), row_config, index)
+        end,
+
+        --- @param e MiEventInfo
+        set_slot_count_field = function(e)
+            local pdata = e.pdata
+            local target_section = e.event.element.parent.parent.parent
+            if not target_section then return end
+            local module_row_tags = target_section.tags --[[@as TargetFrameTags]]
+            local index = module_row_tags.row_index
+
+            local row_config = pdata.active_config.rows[index]
+            if not row_config then return end
+
+            local value = tonumber(e.event.element.text)
+            if value then
+                value = math.max(storage.min_slot_count, math.min(value, storage.max_slot_count))
+                row_config.target.slot_count = value
+                util.normalize_preset_config(pdata.active_config)
+                local module_config_table = pdata.gui.main.module_config_table
+                mi_gui.update_module_config_row(e.player, mi_gui.get_mct_target_section(module_config_table, index),
+                    mi_gui.get_mct_module_set(module_config_table, index), row_config, index)
+            end
+            e.event.element.text = tostring(row_config.target.slot_count)
+        end,
+
     },
     presets = {
 

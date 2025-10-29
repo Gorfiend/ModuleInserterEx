@@ -2,6 +2,7 @@
 Version: 7.2.6
 Date: ????
   Features:
+    - Add ability to use module slot count as a target condition (e.g. define modules for all machines with 3 module slots)
     - Add a tooltip to each module row showing the total effects of those modules
 ---------------------------------------------------------------------------------------------------
 Version: 7.2.5

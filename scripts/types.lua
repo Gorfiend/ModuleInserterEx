@@ -1,6 +1,7 @@
 --- @class (exact) GlobalData
 --- @field delayed_work DelayedWorkData[]
 --- @field name_to_slot_count {[string]:int} Name of all entities mapped to their module slot count
+--- @field min_slot_count int Number of slots the entity with the fewest has
 --- @field max_slot_count int Number of slots the entity with the most has (used for default config slot count)
 --- @field module_entities string[] all entities that have valid module slots
 --- @field _pdata {[int]:PlayerConfig}
@@ -52,14 +53,16 @@
 --- @field module_configs ModuleConfigSet set of module configs for this row
 
 --- @class (exact) TargetConfig Requires at least one entity or recipe. If both are specified, then both must match to be included.
+--- @field show_details boolean Whether to show all config options for this target in the GUI
 --- @field entities string[] List of entities (assemblers) to apply the config to
 --- @field recipes PrototypeWithQuality[] List of recipes to apply the config to
+--- @field slot_count int? Only machines with this number of module slots
 
 --- @class (exact) ModuleConfigSet
 --- @field configs ModuleConfig[]
 
 --- @class (exact) ModuleConfig
---- @field module_list (false|ItemIDAndQualityIDPair)[] array of module slot indexes to the module in that slot (or false if no module)
+--- @field module_list (false|BlueprintItemIDAndQualityIDPair)[] array of module slot indexes to the module in that slot (or false if no module)
 --- @field categories {[string]: string} category to module prototype name of modules contained in the config
 --- @field effects {[string]: string} positive effects to module prototype name of modules contained in the config
 
@@ -125,6 +128,7 @@ end
 function types.make_target_config()
     --- @type TargetConfig
     return {
+        show_details = false,
         entities = {},
         recipes = {},
     }

@@ -235,6 +235,7 @@ end
 local function create_lookup_tables()
     storage.name_to_slot_count = {}
     storage.module_entities = {}
+    storage.min_slot_count = 0
     storage.max_slot_count = 0
     local i = 1
     for name, prototype in pairs(prototypes.entity) do
@@ -250,6 +251,9 @@ local function create_lookup_tables()
                 storage.max_slot_count = math.max(storage.max_slot_count, proto_inv_size)
                 storage.module_entities[i] = name
                 i = i + 1
+            end
+            if storage.min_slot_count == 0 or storage.min_slot_count > proto_inv_size then
+                storage.min_slot_count = proto_inv_size
             end
         end
     end

@@ -42,19 +42,6 @@ function util.get_entity_type(entity)
     end
 end
 
---- @param pair ItemIDAndQualityIDPair?
---- @return ItemIDAndQualityIDPair|false?
-function util.normalize_id_quality_pair(pair)
-    if not pair then return false end
-    if pair.quality and not type(pair.quality) == "string" then
-        return {
-            name = pair.name,
-            quality = pair.quality.name,
-        }
-    end
-    return pair
-end
-
 --- @param pair RecipeIDAndQualityIDPair?
 --- @return PrototypeWithQuality?
 function util.normalize_recipe_id_quality_pair(pair)
@@ -153,7 +140,7 @@ function util.module_valid_for_config(module, target_config)
     return true
 end
 
---- @param module ItemIDAndQualityIDPair
+--- @param module BlueprintItemIDAndQualityIDPair
 --- @param stack_index int
 --- @param inventory_define defines.inventory
 --- @return BlueprintInsertPlan
@@ -162,16 +149,16 @@ local function createBlueprintInsertPlan(module, stack_index, inventory_define)
     return {
         id = module,
         items = {
-            in_inventory = {{
+            in_inventory = { {
                 inventory = inventory_define,
                 stack = stack_index - 1,
                 count = 1,
-            }}
+            } }
         }
     }
 end
 
---- Removes planes in the provided array that have an inventory target matching the provided define
+--- Removes plans in the provided array that have an inventory target matching the provided define
 --- Allows removing module requests, while leaving requests for ingredients or other items
 --- @param plans BlueprintInsertPlan[]
 --- @param inventory_define defines.inventory
@@ -250,7 +237,8 @@ function util.create_request_proxy(entity, module_config, clear)
             module_requests[i] = createBlueprintInsertPlan(target, i, inventory_define)
         end
         if need_to_remove and stack.valid_for_read then
-            new_removal_plan[i] = createBlueprintInsertPlan({ name = stack.name, quality = stack.quality.name }, i, inventory_define)
+            new_removal_plan[i] = createBlueprintInsertPlan({ name = stack.name, quality = stack.quality.name }, i,
+                inventory_define)
         end
     end
 
@@ -326,18 +314,15 @@ end
 --- @param target_config TargetConfig
 --- @return boolean
 function util.target_config_has_entries(target_config)
-    return not util.table_is_empty(target_config.entities) or not util.table_is_empty(target_config.recipes)
-end
-
---- @param row_config RowConfig
---- @return boolean
-function util.row_config_has_entries(row_config)
-    return util.target_config_has_entries(row_config.target)
+    return not util.table_is_empty(target_config.entities) or
+        not util.table_is_empty(target_config.recipes) or
+        (target_config.slot_count ~= nil)
 end
 
 --- @param target_config TargetConfig
 --- @return int
 function util.get_target_config_max_slots(target_config)
+    if target_config.slot_count then return target_config.slot_count end
     if #target_config.recipes > 0 and #target_config.entities == 0 then
         return storage.max_slot_count
     end
@@ -421,6 +406,11 @@ function util.normalize_target_config(target_config)
 
     -- ensure there is a recipe array
     target_config.recipes = target_config.recipes or {}
+
+    -- ensure there is a show_details field
+    target_config.show_details = target_config.show_details or false
+
+    -- slot_count can be null to indicate it is not used
 end
 
 --- Resize the config rows, removing empty rows, and making sure one empty row at the end
@@ -432,17 +422,23 @@ function util.normalize_preset_config(config)
     while index <= #config.rows do
         local row_config = config.rows[index]
         util.normalize_target_config(row_config.target)
-        local have_entries = util.row_config_has_entries(row_config)
+        local have_entries = util.target_config_has_entries(row_config.target)
         if not have_entries then
-            table.remove(config.rows, index)
+            if not row_config.target.show_details then
+                table.remove(config.rows, index)
+            else
+                index = index + 1
+            end
         else
             util.normalize_module_set(util.get_target_config_max_slots(row_config.target), row_config.module_configs)
             index = index + 1
         end
     end
 
-    -- Add a single empty config to the end
-    table.insert(config.rows, types.make_row_config())
+    -- Ensure a single empty config to the end
+    if #config.rows == 0 or util.target_config_has_entries(config.rows[#config.rows].target) then
+        table.insert(config.rows, types.make_row_config())
+    end
 end
 
 --- @param recipe LuaRecipePrototype
@@ -452,14 +448,14 @@ function util.modules_allowed(recipe, modules)
     if recipe.allowed_effects then
         for effect, _ in pairs(modules.effects) do
             if not recipe.allowed_effects[effect] then
-                return false, { "item-limitation." .. effect .. "-effect"}
+                return false, { "item-limitation." .. effect .. "-effect" }
             end
         end
     end
     if recipe.allowed_module_categories then
         for category, _ in pairs(modules.categories) do
             if not recipe.allowed_module_categories[category] then
-                return false, { "item-limitation." .. category .. "-effect"}
+                return false, { "item-limitation." .. category .. "-effect" }
             end
         end
     end
@@ -490,29 +486,38 @@ end
 
 --- @param entity_name string
 --- @param recipe PrototypeWithQuality?
+--- @param target TargetConfig
+--- @return boolean True if the entity/recipe matches the given target config
+function util.target_config_matches_entity(entity_name, recipe, target)
+    if not target.slot_count and #target.entities == 0 and #target.recipes == 0 then
+        return false
+    end
+    if target.slot_count and target.slot_count ~= storage.name_to_slot_count[entity_name] then
+        -- Using slot count, and candidate has a different number of slots
+        return false
+    end
+    if #target.entities ~= 0 and not util.array_contains(target.entities, entity_name) then
+        -- Entitie(s) have been selected, and the candidate is not one of them
+        return false
+    end
+    if #target.recipes ~= 0 then
+        -- Recipe(s) have been selected, and the candidate is not one of them (or has no recipe set)
+        if not recipe or not util.array_contains_recipe(target.recipes, recipe) then
+            return false
+        end
+    end
+    return true
+end
+
+--- @param entity_name string
+--- @param recipe PrototypeWithQuality?
 --- @param preset PresetConfig
 --- @return ModuleConfigSet|true Module config set to use for this entity, or true if none
 function util.find_module_set_to_use_for_entity(entity_name, recipe, preset)
-    -- If a recipe is set, then first check for matches with targets that have both recipes and entities
-    if recipe then
-        for _, row in pairs(preset.rows) do
-            if #row.target.recipes > 0 and #row.target.entities > 0 then
-                if util.array_contains(row.target.entities, entity_name) and util.array_contains_recipe(row.target.recipes, recipe) then
-                    return row.module_configs
-                end
-            end
-        end
-    end
     -- Next check any entity-only and recipe-only rows in order
     for _, row in pairs(preset.rows) do
-        if #row.target.recipes == 0 then
-            if util.array_contains(row.target.entities, entity_name) then
-                return row.module_configs
-            end
-        elseif recipe and #row.target.entities == 0 then
-            if util.array_contains_recipe(row.target.recipes, recipe) then
-                return row.module_configs
-            end
+        if util.target_config_matches_entity(entity_name, recipe, row.target) then
+            return row.module_configs
         end
     end
     -- Otherwise, use default if enabled
