@@ -183,8 +183,6 @@ end
 --- @param module_config ModuleConfig
 --- @param clear boolean If true, remove all current modules
 function util.create_request_proxy(entity, module_config, clear)
-    local modules = module_config.module_list
-
     if entity.type == "entity-ghost" then
         local inventory_define = util.inventory_defines_map[entity.ghost_type]
         local insert_plan = entity.insert_plan
@@ -192,7 +190,7 @@ function util.create_request_proxy(entity, module_config, clear)
         local slots = storage.name_to_slot_count[entity.ghost_name]
         if slots then
             for i = 1, slots do
-                local insert_module = modules[i]
+                local insert_module = util.get_module_for_slot(module_config, i)
                 if insert_module then
                     table.insert(insert_plan, createBlueprintInsertPlan(insert_module, i, inventory_define))
                 end
@@ -220,7 +218,7 @@ function util.create_request_proxy(entity, module_config, clear)
     local new_removal_plan = {}
     for i = 1, #module_inventory do
         local stack = module_inventory[i]
-        local target = modules[i]
+        local target = util.get_module_for_slot(module_config, i)
         local need_to_remove = clear
         local need_to_add = not not target
         if stack.valid_for_read then
@@ -334,36 +332,57 @@ function util.get_target_config_max_slots(target_config)
 end
 
 --- Resize the module lists if needed
---- @param slots int Number of slots in each row
+--- @param a BlueprintItemIDAndQualityIDPair?
+--- @param b BlueprintItemIDAndQualityIDPair?
+function util.check_bp_pairs_equal(a, b)
+    if not a and not b then
+        return true
+    end
+    if not a or not b then
+        return false
+    end
+    return a.name == b.name and a.quality == b.quality
+end
+
+--- Resize the module lists if needed
+--- @param slots int Max number of slots in each row
 --- @param module_config ModuleConfig
 function util.normalize_module_config(slots, module_config)
-    local current_size = #module_config.module_list
-    if current_size > 256 then
-        -- Special case in case theres a config with tons of slots that need to be removed
-        local old_list = module_config.module_list
-        module_config.module_list = {}
-        for slot_index = 1, slots do
-            module_config.module_list[slot_index] = old_list[slot_index]
-        end
-    else
-        -- Clear slots that are not used anymore
-        for slot_index = slots + 1, current_size do
-            module_config.module_list[slot_index] = nil
+    local sum = 0
+    local module_list = module_config.module_list
+    -- First scan and remove any extra definitions beyond the max slot count
+    for i = 1, #module_list do
+        local entry = module_list[i]
+        sum = sum + entry.count
+        if sum >= slots then
+            entry.count = entry.count - (sum - slots)
+            for x = i + 1, #module_list do
+                module_list[x] = nil
+            end
+            break
         end
     end
-    -- Make sure it maps each slot
-    for slot_index = 1, slots do
-        if not module_config.module_list[slot_index] then
-            module_config.module_list[slot_index] = false
+    -- Next, scan in reverse order and merge entrys than can be merged
+    for i = #module_list, 2, -1 do
+        local entry = module_list[i]
+        local prev_entry = module_list[i - 1]
+        if util.check_bp_pairs_equal(entry.module, prev_entry.module) then
+            prev_entry.count = prev_entry.count + entry.count
+            table.remove(module_list, i)
         end
+    end
+
+    -- Remove a trailing empty config
+    if #module_list > 0 and not module_list[#module_list].module then
+        table.remove(module_list, #module_list)
     end
 
     -- Rebuild category/effect mapping
     module_config.categories = {}
     module_config.effects = {}
-    for _, module in pairs(module_config.module_list) do
-        if module then
-            local name = module.name
+    for _, module_entry in pairs(module_config.module_list) do
+        if module_entry and module_entry.module then
+            local name = module_entry.module.name
             ---@cast name string
             local module_proto = prototypes.item[name]
             if module_proto then
@@ -439,6 +458,82 @@ function util.normalize_preset_config(config)
     if #config.rows == 0 or util.target_config_has_entries(config.rows[#config.rows].target) then
         table.insert(config.rows, types.make_row_config())
     end
+end
+
+--- @param module_config ModuleConfig The config to update
+--- @param slot int machine slot to update
+--- @param module BlueprintItemIDAndQualityIDPair? module to set in this slot, nil for none
+function util.set_module_slot(module_config, slot, module)
+    local sum = 0
+    local module_list = module_config.module_list
+    local list_index = 0
+    for i = 1, #module_list do
+        sum = sum + module_list[i].count
+        if sum >= slot then
+            list_index = i
+            break
+        end
+    end
+
+    if sum < (slot - 1) then
+        -- Need a "spacer" of empty module slots
+        local new_entry = types.make_module_config_entry()
+        new_entry.count = slot - sum - 1
+        table.insert(module_list, new_entry)
+    end
+    if sum < slot then
+        -- Need a new entry
+        local new_entry = types.make_module_config_entry()
+        new_entry.count = 1
+        new_entry.module = module
+        table.insert(module_list, new_entry)
+    else
+        -- Need to edit an existing entry
+        local old_entry = module_list[list_index]
+        if old_entry.module == module then return end -- Already set to what we want
+        if old_entry.count == 1 then
+            -- Just need to update the existing one
+            old_entry.module = module
+            return
+        end
+        -- Else, need to shrink or split the existing one, and add a new one
+        local start_index = sum - old_entry.count + 1
+        local end_index = sum
+
+        local new_entry = types.make_module_config_entry()
+        new_entry.count = 1
+        new_entry.module = module
+        if start_index == slot then
+            old_entry.count = old_entry.count - 1
+            table.insert(module_list, list_index, new_entry)
+        elseif end_index == slot then
+            old_entry.count = old_entry.count - 1
+            table.insert(module_list, list_index + 1, new_entry)
+        else
+            old_entry.count = slot - start_index
+            table.insert(module_list, list_index + 1, new_entry)
+            local split_entry = types.make_module_config_entry()
+            split_entry.count = end_index - slot
+            split_entry.module = old_entry.module
+            table.insert(module_list, list_index + 2, split_entry)
+        end
+    end
+end
+
+--- @param module_config ModuleConfig The config to get from
+--- @param slot int machine slot to update
+--- @return BlueprintItemIDAndQualityIDPair? module set in this slot, nil for none
+function util.get_module_for_slot(module_config, slot)
+    -- TODO would likely be more efficient to not use this function...
+    local sum = 0
+    local module_list = module_config.module_list
+    for i = 1, #module_list do
+        sum = sum + module_list[i].count
+        if sum >= slot then
+            return module_list[i].module
+        end
+    end
+    return nil
 end
 
 --- @param recipe LuaRecipePrototype

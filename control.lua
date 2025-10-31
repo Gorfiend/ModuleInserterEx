@@ -5,6 +5,7 @@ local table = require("__flib__.table")
 local mi_gui = require("scripts.gui")
 local types = require("scripts.types")
 local util = require("scripts.util")
+local migrations = require("scripts.migrations")
 
 --- @type GlobalData
 storage = {} ---@diagnostic disable-line: missing-fields
@@ -67,12 +68,7 @@ local function cycle_active_preset(e, cycleNext)
     end
 end
 
-local function update_on_tick_listener(check)
-    if check then
-        -- TODO if config changed, need to revalidate all the delayed work...
-        -- But don't want to cancel everything if it's still good
-    end
-
+local function update_on_tick_listener()
     -- Unregister any previous listener
     script.on_nth_tick(nil)
     storage.nth_tick_registered = nil
@@ -272,43 +268,55 @@ local function remove_invalid_items()
         --- @param module_config ModuleConfigSet
         local function _clean_module_config(module_config)
             for _, mc in pairs(module_config.configs) do
-                for i, m in pairs(mc.module_list) do
-                    if m and not prototypes.item[m.name] then
-                        removed_modules[m.name] = true
-                        mc.module_list[i] = nil
-                    elseif m and m.quality and not prototypes.quality[m.quality] then
-                        removed_qualities[m.quality] = true
-                        mc.module_list[i].quality = replacement_quality
+                for i = #mc.module_list, 1, -1 do
+                    local m = mc.module_list[i]
+                    local name = m and m.module and m.module.name
+                    ---@diagnostic disable-next-line
+                    name = name or m and m.name -- For the older module list format
+                    local quality = m and m.module and m.module.quality
+                    ---@diagnostic disable-next-line
+                    quality = m and m.quality
+                    if name and not prototypes.item[name] then
+                        removed_modules[name] = true
+                        table.remove(mc.module_list, i)
+                    elseif quality and not prototypes.quality[quality] then
+                        removed_qualities[quality] = true
+                        mc.module_list[i].module.quality = replacement_quality
                     end
                 end
             end
         end
         _clean_module_config(preset.default)
         for _, row in pairs(preset.rows) do
-            for i, target in pairs(row.target.entities) do
+            for i = #row.target.entities, 1, -1 do
+                local target = row.target.entities[i]
                 -- Checks both if an entity was removed, or if its module slots were removed
                 if target and not storage.name_to_slot_count[target] then
                     removed_entities[target] = true
-                    row.target.entities[i] = nil
+                    table.remove(row.target.entities, i)
                 end
             end
             if row.target.recipes then
-                for i, target in pairs(row.target.recipes) do
+                for i = #row.target.recipes, 1, -1 do
+                    local target = row.target.recipes[i]
                     if target and not prototypes.recipe[target.name] then
                         removed_recipes[target.name] = true
-                        row.target.recipes[i] = nil
+                        table.remove(row.target.recipes, i)
                     end
                 end
             end
             _clean_module_config(row.module_configs)
         end
-        util.normalize_preset_config(preset)
     end
     for _, pdata in pairs(storage._pdata) do
         _clean(pdata.active_config)
         for _, preset in pairs(pdata.saved_presets) do
             _clean(preset)
         end
+    end
+    for _, work in pairs(storage.delayed_work) do
+        _clean(work.preset)
+        work.entity_recipe_to_config_cache = {} -- clear the cache
     end
     for k in pairs(removed_entities) do
         log("Module Inserter: Removed Entity " .. k .. " from all configurations")
@@ -370,6 +378,9 @@ local function normalize_all_presets()
             util.normalize_preset_config(preset)
         end
     end
+    for _, work in pairs(storage.delayed_work) do
+        util.normalize_preset_config(work.preset)
+    end
 end
 
 local function migrate_to_v_7()
@@ -398,18 +409,6 @@ local function migrate_to_v_7()
     init_players()
 end
 
---- @type MigrationsTable
-local migrations = {
-    ["7.0.4"] = function()
-        -- Fix up the category definitions
-        normalize_all_presets()
-    end,
-    ["7.2.0"] = function()
-        -- Add empty recipe array to all targets
-        normalize_all_presets()
-    end,
-}
-
 script.on_configuration_changed(function(e)
     -- Special handling to do the major migration to v 7 first (nukes all player data)
     local changes = e.mod_changes[script.mod_name]
@@ -422,12 +421,13 @@ script.on_configuration_changed(function(e)
 
     remove_invalid_items()
     migration.on_config_changed(e, migrations)
+    normalize_all_presets()
     -- Always remove/rebuild guis
     for pi, pdata in pairs(storage._pdata) do
         mi_gui.destroy(pdata, game.get_player(pi) --[[@as LuaPlayer]])
         mi_gui.create(pi)
     end
-    update_on_tick_listener(true)
+    update_on_tick_listener()
 end)
 
 script.on_event("toggle-module-inserter-ex", function(e)

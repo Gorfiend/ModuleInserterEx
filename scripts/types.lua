@@ -62,9 +62,13 @@
 --- @field configs ModuleConfig[]
 
 --- @class (exact) ModuleConfig
---- @field module_list (false|BlueprintItemIDAndQualityIDPair)[] array of module slot indexes to the module in that slot (or false if no module)
+--- @field module_list ModuleConfigEntry[] array of modules in this config
 --- @field categories {[string]: string} category to module prototype name of modules contained in the config
 --- @field effects {[string]: string} positive effects to module prototype name of modules contained in the config
+
+--- @class (exact) ModuleConfigEntry
+--- @field count int number of this module
+--- @field module BlueprintItemIDAndQualityIDPair? Module info, or nil for no module (empty slot)
 
 --- @class (exact) MiEventInfo
 --- @field event flib.GuiEventData
@@ -149,6 +153,15 @@ function types.make_module_config()
         module_list = {},
         categories = {},
         effects = {},
+    }
+end
+
+--- @return ModuleConfigEntry
+function types.make_module_config_entry()
+    --- @type ModuleConfigEntry
+    return {
+        count = 0,
+        module = nil,
     }
 end
 

@@ -1,5 +1,5 @@
 ---------------------------------------------------------------------------------------------------
-Version: 7.2.6
+Version: 7.3.0
 Date: ????
   Features:
     - Add ability to use module slot count as a target condition (e.g. define modules for all machines with 3 module slots)

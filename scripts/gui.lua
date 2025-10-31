@@ -900,10 +900,18 @@ function mi_gui.update_modules(player, gui_module_row, slots, config_set, index)
         speed = 0,
     }
 
+    local total_count = 0
+    local config_index = 1
     for i = 1, slots do
         local child = button_table.children[i]
-        local mod = module_list[i]
-        child.elem_value = mod --[[@as PrototypeWithQuality]] or nil
+        local entry = module_list[config_index]
+        if entry and i > (total_count + entry.count) then
+            total_count = total_count + entry.count
+            config_index = config_index + 1
+            entry = module_list[config_index]
+        end
+        local mod = entry and entry.module
+        child.elem_value = mod --[[@as PrototypeWithQuality]]
         if mod then
             child.tooltip = nil
         else
@@ -1260,12 +1268,15 @@ mi_gui.handlers = {
                     return
                 end
             end
-            module_config.module_list[slot] = element.elem_value --[[@as BlueprintItemIDAndQualityIDPair]]
 
             if slot == 1 and e.player.mod_settings["module-inserter-ex-fill-all"].value then
-                for i = 2, slot_count do
-                    module_config.module_list[i] = module_config.module_list[slot]
-                end
+                module_config.module_list = {}
+                local new_entry = types.make_module_config_entry()
+                new_entry.count = slot_count
+                new_entry.module = element.elem_value --[[@as BlueprintItemIDAndQualityIDPair]]
+                table.insert(module_config.module_list, new_entry)
+            else
+                util.set_module_slot(module_config, slot, element.elem_value --[[@as BlueprintItemIDAndQualityIDPair]])
             end
             util.normalize_module_config(slot_count, module_config)
 
