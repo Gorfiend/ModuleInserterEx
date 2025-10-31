@@ -105,6 +105,11 @@ mi_gui.templates = {
             children = {
                 module_table,
                 {
+                    type = "label",
+                    name = "effects_summary_label",
+                    caption = "[img=info]",
+                },
+                {
                     type = "sprite-button",
                     name = "delete_module_row_button",
                     tooltip = { "module-inserter-ex-delete-module-set" },
@@ -713,7 +718,11 @@ function mi_gui.update_target_section(target_entity_table, target_config)
     for index, config_entity in ipairs(target_config.entities) do
         local _, button = gui.add(target_entity_table, { mi_gui.templates.assembler_button(row_index, index, index) })
         button.elem_value = config_entity
-        button.tooltip = util.get_localised_entity_name(config_entity, { "module-inserter-ex-choose-assembler" })
+        if config_entity then
+            button.tooltip = nil
+        else
+            button.tooltip = { "module-inserter-ex-choose-assembler" }
+        end
         button.elem_filters = entity_filters
     end
 
@@ -805,16 +814,58 @@ function mi_gui.update_modules(player, gui_module_row, slots, config_set, index)
         button_table.children[#button_table.children].destroy()
     end
 
+    local total_effects = {
+        consumption = 0,
+        pollution = 0,
+        productivity = 0,
+        quality = 0,
+        speed = 0,
+    }
+
     for i = 1, slots do
         local child = button_table.children[i]
-        child.elem_value = module_list[i] --[[@as PrototypeWithQuality]] or nil
-        local tooltip = module_list[i] and prototypes.item[module_list[i].name].localised_name or
-            { "module-inserter-ex-choose-module" }
-        if i == 1 and player.mod_settings["module-inserter-ex-fill-all"].value then
-            tooltip = { "", tooltip, "\n", { "module-inserter-ex-choose-module-fill-all-tooltip" } }
+        local mod = module_list[i]
+        child.elem_value = mod --[[@as PrototypeWithQuality]] or nil
+        if mod then
+            child.tooltip = nil
+        else
+            local tooltip = { "module-inserter-ex-choose-module" }
+            if i == 1 and player.mod_settings["module-inserter-ex-fill-all"].value then
+                tooltip = { "", tooltip, "\n", { "module-inserter-ex-choose-module-fill-all-tooltip" } }
+            end
+            child.tooltip = tooltip
         end
-        child.tooltip = tooltip
+
+        if mod then
+            local proto = prototypes.item[mod.name]
+
+            for key, value in pairs(proto.get_module_effects(mod.quality) --[[@as table]]) do
+                if value then
+                    total_effects[key] = total_effects[key] + (value)
+                end
+            end
+        end
     end
+
+    local summary_tooltip = { "module-inserter-ex-total-module-effects-tooltip" }
+    -- Quality effect strength to percent is special
+    -- Also, technically could be different for each quality level, but don't want to deal with that...
+    total_effects.quality = total_effects.quality * 0.1
+    for key, value in pairs(total_effects) do
+        if key == "quality" and #prototypes.quality == 2 then -- "Normal" and "unknown"
+            -- Skip showing quality if it isn't enabled
+            goto continue
+        end
+        if value ~= 0 then
+            local val_str = string.format("%+.1f", value * 100):gsub("%.?0+$", "") .. "%"
+            summary_tooltip = { "", summary_tooltip, "\n[font=default-semibold][color=#FFE6C0]",
+                { "description." .. key .. "-bonus" }, "[/color][/font]: ", val_str }
+        end
+        ::continue::
+    end
+
+    gui_module_row.effects_summary_label.tooltip = summary_tooltip
+
 end
 
 --- @param player LuaPlayer

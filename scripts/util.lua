@@ -301,13 +301,6 @@ function util.create_request_proxy(entity, module_config, clear)
     end
 end
 
---- @param entity_name string?
---- @param fallback LocalisedString
---- @return LocalisedString
-function util.get_localised_entity_name(entity_name, fallback)
-    return entity_name and prototypes.entity[entity_name] and prototypes.entity[entity_name].localised_name or fallback
-end
-
 --- @param entity_name string|PrototypeWithQuality?
 --- @param fallback LocalisedString
 --- @return LocalisedString
