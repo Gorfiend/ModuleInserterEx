@@ -22,6 +22,17 @@ function util.table_is_empty(table)
     return next(table) == nil
 end
 
+--- @param name string
+--- @return string
+function util.convert_entity_name(name)
+    -- SE "grounded" entities use the same modules as the non-grounded form, so convert to use that here
+    local check = name:match("^(se-.*)-grounded$")
+    if check and prototypes.entity[check] then
+        return check
+    end
+    return name
+end
+
 --- @param entity LuaEntity
 --- @return string
 function util.get_entity_name(entity)
@@ -89,14 +100,18 @@ function util.entity_valid_for_modules(entity, module_config)
     if entity_proto.allowed_effects then
         for effect, module_name in pairs(module_config.effects) do
             if not entity_proto.allowed_effects[effect] then
-                return false, { "inventory-restriction.cant-insert-module", prototypes.item[module_name].localised_name, entity_proto.localised_name }
+                return false,
+                    { "inventory-restriction.cant-insert-module", prototypes.item[module_name].localised_name,
+                        entity_proto.localised_name }
             end
         end
     end
     if entity_proto.allowed_module_categories then
         for category, module_name in pairs(module_config.categories) do
             if not entity_proto.allowed_module_categories[category] then
-                return false, { "inventory-restriction.cant-insert-module", prototypes.item[module_name].localised_name, entity_proto.localised_name }
+                return false,
+                    { "inventory-restriction.cant-insert-module", prototypes.item[module_name].localised_name,
+                        entity_proto.localised_name }
             end
         end
     end
@@ -125,13 +140,16 @@ function util.module_valid_for_config(module, target_config)
     for _, entity in pairs(target_config.entities) do
         local entity_proto = prototypes.entity[entity]
         if entity_proto.allowed_module_categories and not entity_proto.allowed_module_categories[proto.category] then
-            return false, { "inventory-restriction.cant-insert-module", proto.localised_name, entity_proto.localised_name }
+            return false,
+                { "inventory-restriction.cant-insert-module", proto.localised_name, entity_proto.localised_name }
         end
         if itemEffects then
             for name, effect in pairs(itemEffects) do
                 if effect > 0 then
                     if entity_proto.allowed_effects and not entity_proto.allowed_effects[name] then
-                        return false, { "inventory-restriction.cant-insert-module", proto.localised_name, entity_proto.localised_name }
+                        return false,
+                            { "inventory-restriction.cant-insert-module", proto.localised_name, entity_proto
+                                .localised_name }
                     end
                 end
             end
@@ -356,25 +374,36 @@ function util.normalize_module_config(slots, module_config)
         sum = sum + entry.count
         if sum >= slots then
             entry.count = entry.count - (sum - slots)
-            for x = i + 1, #module_list do
+            local offset = (entry.count < 1) and 0 or 1
+            for x = i + offset, #module_list do
                 module_list[x] = nil
             end
             break
         end
     end
     -- Next, scan in reverse order and merge entrys than can be merged
-    for i = #module_list, 2, -1 do
+    for i = #module_list, 1, -1 do
         local entry = module_list[i]
-        local prev_entry = module_list[i - 1]
-        if util.check_bp_pairs_equal(entry.module, prev_entry.module) then
-            prev_entry.count = prev_entry.count + entry.count
+        if entry.count == 0 then
             table.remove(module_list, i)
+        elseif i > 1 then
+            local prev_entry = module_list[i - 1]
+            if util.check_bp_pairs_equal(entry.module, prev_entry.module) then
+                prev_entry.count = prev_entry.count + entry.count
+                table.remove(module_list, i)
+            end
         end
     end
 
-    -- Remove a trailing empty config
-    if #module_list > 0 and not module_list[#module_list].module then
-        table.remove(module_list, #module_list)
+    -- Ensure an empty group at the end to fill out the slot count
+    if sum < slots then
+        if #module_list > 0 and not module_list[#module_list].module then
+            module_list[#module_list].count = module_list[#module_list].count + slots - sum
+        else
+            local new_entry = types.make_module_config_entry()
+            new_entry.count = slots - sum
+            table.insert(module_list, new_entry)
+        end
     end
 
     -- Rebuild category/effect mapping

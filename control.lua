@@ -109,6 +109,8 @@ function control.delayed_creation(e)
                 ent_type = entity.type
             end
 
+            ent_name = util.convert_entity_name(ent_name)
+
             if not storage.name_to_slot_count[ent_name] then
                 -- No module in this entity (e.g. stone furnace)
                 goto continue
@@ -223,9 +225,24 @@ local function on_player_reverse_selected_area(e)
     end
 end
 
-local function se_grounded_entity(name)
-    local result = name:sub(-9) == "-grounded"
-    return result
+local function is_ignored_entity(prototype)
+    if prototype.module_inventory_size > 1000 then
+        -- Assume anything with this big an inventory isn't meant for the player
+        -- The biggest inventory I know of that is valud is 200 (from Py alien life)
+        return true
+    end
+    if prototype.name == "mupgrade-beacon" then
+        -- Special beacon to implement building bonuses
+        return true
+    end
+    if prototype.name:match("^se-.*-grounded$") then
+        -- "grounded" entities from SE get special handling, so we ignore them here
+        -- and when applying modules automatically treat them as the non-grounded type
+        -- There is also at least one "spaced" entity, but that accepts different modules
+        -- so we will keep it as an option for the player to set differently
+        return true
+    end
+    return false
 end
 
 local function create_lookup_tables()
@@ -236,21 +253,14 @@ local function create_lookup_tables()
     local i = 1
     for name, prototype in pairs(prototypes.entity) do
         local proto_inv_size = prototype.module_inventory_size
-        if proto_inv_size and proto_inv_size > 0 and not se_grounded_entity(name) then
-            -- TODO quick fix to prevent terrible performance/crashes due to a huge number of slots
-            -- Motivated by the "TCN-beacon" from Factorio-Tiberium, that has 32768 slots
-            -- That causes building the gui for that many slots (in the default set) hang the game
-            -- A more robust solution would be to adjust the module set gui when there's a ton of slots
-            -- Could do something similar to FactoryPlanner, where you specify module types and quantities
-            if proto_inv_size <= 256 then
-                storage.name_to_slot_count[name] = proto_inv_size
-                storage.max_slot_count = math.max(storage.max_slot_count, proto_inv_size)
-                storage.module_entities[i] = name
-                i = i + 1
-            end
+        if proto_inv_size and proto_inv_size > 0 and not is_ignored_entity(prototype) then
+            storage.name_to_slot_count[name] = proto_inv_size
+            storage.module_entities[i] = name
+            storage.max_slot_count = math.max(storage.max_slot_count, proto_inv_size)
             if storage.min_slot_count == 0 or storage.min_slot_count > proto_inv_size then
                 storage.min_slot_count = proto_inv_size
             end
+            i = i + 1
         end
     end
 end
@@ -342,6 +352,7 @@ local function init_player(i)
     init_global()
     local pdata = storage._pdata[i] or {}
     local active_config = pdata.active_config or types.make_preset_config("Default Config")
+    util.normalize_preset_config(active_config)
     storage._pdata[i] = {
         active_config = active_config,
         saved_presets = pdata.saved_presets or { active_config },
@@ -450,6 +461,14 @@ end)
 script.on_event("module-inserter-ex-previous-preset", function(e)
     cycle_active_preset(make_event_info(e), false)
 end)
+script.on_event(defines.events.on_runtime_mod_setting_changed, function(e)
+    if e.setting == "module-inserter-ex-slots-before-alt-ui" then
+        local player = game.get_player(e.player_index)
+        if not player then return end
+        local pdata = storage._pdata[e.player_index]
+        mi_gui.update_module_config_table(player, pdata)
+    end
+end)
 
 gui.handle_events()
 
@@ -496,7 +515,10 @@ remote.add_interface("ModuleInserterEx", {
             recipe = util.recipe_pair_from_entity(entity)
         end
 
-        local set_to_use = util.find_module_set_to_use_for_entity(ent_name, recipe, storage._pdata[player.index].active_config)
+        ent_name = util.convert_entity_name(ent_name)
+
+        local set_to_use = util.find_module_set_to_use_for_entity(ent_name, recipe,
+            storage._pdata[player.index].active_config)
         if set_to_use == true then return end -- Don't set anything on this entity type
         module_config, messages = util.choose_module_config_from_set(ent_name, recipe, set_to_use)
         if not module_config then return end
@@ -511,7 +533,7 @@ remote.add_interface("ModuleInserterEx", {
 
     --- @param player int|LuaPlayer player index or LuaPlayer to source the config from
     --- @param entity_list LuaEntity[] Array of entities to apply modules to
-    apply_module_config_to_entities = function (player, entity_list)
+    apply_module_config_to_entities = function(player, entity_list)
         if type(player) == "number" then player = game.players[player] end
         if not player or not player.valid then return end
 

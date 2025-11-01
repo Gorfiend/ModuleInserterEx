@@ -6,6 +6,7 @@ local types = require("scripts.types")
 local util = require("scripts.util")
 
 local TARGET_SECTION_WIDTH = 320
+local MODULE_GROUP_FRAME_WIDTH = 166
 local MODULE_SET_WIDTH = 440
 local PRESET_BUTTON_FIELD_WIDTH = 200
 
@@ -72,7 +73,62 @@ mi_gui.templates = {
                 row_index = module_row_tags.row_index,
                 module_row_index = module_row_tags.module_row_index,
                 slot_index = slot_index,
-            }
+            },
+        }
+    end,
+
+    --- @param module_row_tags ModuleRowTags
+    --- @param group_index int
+    --- @return flib.GuiElemDef
+    grouped_module_input = function(module_row_tags, group_index)
+        -- TODO This could be filtered based on the current assembler to only valid modules (e.g. hide productivity for beacons)
+        return {
+            type = "flow",
+            name = "grouped_module_frame_" .. group_index,
+            --- @type GroupedModuleInputTags
+            tags = {
+                row_index = module_row_tags.row_index,
+                module_row_index = module_row_tags.module_row_index,
+                group_index = group_index,
+            },
+            style_mods = {
+                vertical_align = "center",
+                width = MODULE_GROUP_FRAME_WIDTH,
+            },
+            children = {
+                {
+                    type = "choose-elem-button",
+                    name = "button",
+                    handler = { [defines.events.on_gui_elem_changed] = mi_gui.handlers.main.choose_grouped_module },
+                    elem_type = "item-with-quality",
+                    elem_filters = { { filter = "type", type = "module" } },
+                    style = "slot_button",
+                },
+                {
+                    type = "slider",
+                    name = "slider",
+                    handler = mi_gui.handlers.main.set_grouped_module_count_slider,
+                    minimum_value = storage.min_slot_count,
+                    maximum_value = storage.max_slot_count,
+                    discrete_values = true,
+                    style = "notched_slider",
+                    style_mods = {
+                        horizontally_stretchable = true,
+                        minimal_width = 50,
+                    },
+                },
+                {
+                    type = "textfield",
+                    name = "textfield",
+                    handler = { [defines.events.on_gui_confirmed] = mi_gui.handlers.main.set_grouped_module_count_field, },
+                    numeric = true,
+                    allow_decimal = false,
+                    allow_negative = false,
+                    style_mods = {
+                        width = 40,
+                    },
+                },
+            },
         }
     end,
 
@@ -89,22 +145,31 @@ mi_gui.templates = {
         }
         local module_table = {
             type = "table",
-            name = "module_row_table_" .. module_row_index,
+            name = "module_slot_table",
             column_count = 8,
-            tags = module_row_tags,
             style = "slot_table",
             children = {},
         }
-        for m = 1, slots do
-            module_table.children[m] = mi_gui.templates.module_button(module_row_tags, m)
-        end
+        local grouped_module_table = {
+            type = "table",
+            name = "module_group_table",
+            column_count = 2,
+            style = "slot_table",
+            children = {
+                mi_gui.templates.grouped_module_input(module_row_tags, 1)
+            },
+            style_mods = {
+                width = MODULE_GROUP_FRAME_WIDTH * 2,
+            },
+        }
         local row_frame = {
             type = "frame",
             name = "module_row_frame_" .. module_row_index,
-            style = "slot_button_deep_frame",
             tags = module_row_tags,
+            style = "shallow_frame_in_shallow_frame",
             children = {
                 module_table,
+                grouped_module_table,
                 {
                     type = "label",
                     name = "effects_summary_label",
@@ -253,6 +318,7 @@ mi_gui.templates = {
                                     handler = mi_gui.handlers.main.set_slot_count_slider,
                                     minimum_value = storage.min_slot_count,
                                     maximum_value = storage.max_slot_count,
+                                    discrete_values = true,
                                     style = "notched_slider",
                                     style_mods = {
                                         horizontally_stretchable = true,
@@ -785,9 +851,7 @@ function mi_gui.update_target_section(target_section, target_config)
     local row_index = table_tags.row_index
     -- Filter out already-selected entities
     local entity_filters = { { filter = "name", name = storage.module_entities } }
-    for _, entity in pairs(target_config.entities) do
-        table.insert(entity_filters, { filter = "name", name = entity, invert = true, mode = "and" })
-    end
+    table.insert(entity_filters, { filter = "name", name = target_config.entities, invert = true, mode = "and" })
     -- Add entity buttons as needed
     for index, config_entity in ipairs(target_config.entities) do
         local _, button = gui.add(target_entity_table, { mi_gui.templates.assembler_button(row_index, index, index) })
@@ -884,12 +948,14 @@ function mi_gui.update_modules(player, gui_module_row, slots, config_set, index)
     local module_list = module_config.module_list or {}
     local module_row_tags = gui_module_row.tags --[[@as ModuleRowTags]]
 
-    -- Add or destroy buttons as needed
-    while #button_table.children < slots do
-        gui.add(button_table, { mi_gui.templates.module_button(module_row_tags, #button_table.children + 1) })
-    end
-    while #button_table.children > slots do
-        button_table.children[#button_table.children].destroy()
+    if slots > player.mod_settings["module-inserter-ex-slots-before-alt-ui"].value then
+        gui_module_row.module_slot_table.visible = false
+        gui_module_row.module_group_table.visible = true
+        mi_gui.update_module_row_groups(gui_module_row.module_group_table, module_row_tags, module_list)
+    else
+        gui_module_row.module_slot_table.visible = true
+        gui_module_row.module_group_table.visible = false
+        mi_gui.update_module_row_slots(player, gui_module_row.module_slot_table, module_row_tags, slots, module_list)
     end
 
     local total_effects = {
@@ -900,34 +966,14 @@ function mi_gui.update_modules(player, gui_module_row, slots, config_set, index)
         speed = 0,
     }
 
-    local total_count = 0
-    local config_index = 1
-    for i = 1, slots do
-        local child = button_table.children[i]
-        local entry = module_list[config_index]
-        if entry and i > (total_count + entry.count) then
-            total_count = total_count + entry.count
-            config_index = config_index + 1
-            entry = module_list[config_index]
-        end
-        local mod = entry and entry.module
-        child.elem_value = mod --[[@as PrototypeWithQuality]]
-        if mod then
-            child.tooltip = nil
-        else
-            local tooltip = { "module-inserter-ex-choose-module" }
-            if i == 1 and player.mod_settings["module-inserter-ex-fill-all"].value then
-                tooltip = { "", tooltip, "\n", { "module-inserter-ex-choose-module-fill-all-tooltip" } }
-            end
-            child.tooltip = tooltip
-        end
-
+    for _, entry in pairs(module_list) do
+        local mod = entry.module
         if mod then
             local proto = prototypes.item[mod.name]
 
             for key, value in pairs(proto.get_module_effects(mod.quality) --[[@as table]]) do
                 if value then
-                    total_effects[key] = total_effects[key] + (value)
+                    total_effects[key] = total_effects[key] + (value * entry.count)
                 end
             end
         end
@@ -951,7 +997,98 @@ function mi_gui.update_modules(player, gui_module_row, slots, config_set, index)
     end
 
     gui_module_row.effects_summary_label.tooltip = summary_tooltip
+end
 
+--- @param player LuaPlayer
+--- @param button_table LuaGuiElement
+--- @param module_row_tags ModuleRowTags
+--- @param slots int
+--- @param module_list ModuleConfigEntry[]
+function mi_gui.update_module_row_slots(player, button_table, module_row_tags, slots, module_list)
+    -- Add or destroy buttons as needed
+    while #button_table.children < slots do
+        gui.add(button_table, { mi_gui.templates.module_button(module_row_tags, #button_table.children + 1) })
+    end
+    while #button_table.children > slots do
+        button_table.children[#button_table.children].destroy()
+    end
+
+    local total_count = 0
+    local config_index = 1
+    for i = 1, slots do
+        local child = button_table.children[i]
+        local entry = module_list[config_index]
+        if entry and i > (total_count + entry.count) then
+            total_count = total_count + entry.count
+            config_index = config_index + 1
+            entry = module_list[config_index]
+        end
+        local mod = entry and entry.module
+        child.elem_value = mod --[[@as PrototypeWithQuality]]
+        if mod then
+            child.tooltip = nil
+        else
+            local tooltip = { "module-inserter-ex-choose-module" }
+            if i == 1 and player.mod_settings["module-inserter-ex-fill-all"].value then
+                tooltip = { "", tooltip, "\n", { "module-inserter-ex-choose-module-fill-all-tooltip" } }
+            end
+            child.tooltip = tooltip
+        end
+    end
+end
+
+--- @param group_table LuaGuiElement
+--- @param module_row_tags ModuleRowTags
+--- @param module_list ModuleConfigEntry[]
+function mi_gui.update_module_row_groups(group_table, module_row_tags, module_list)
+    -- Add or destroy groups as needed
+    while #group_table.children < #module_list do
+        gui.add(group_table, { mi_gui.templates.grouped_module_input(module_row_tags, #group_table.children + 1) })
+    end
+    while #group_table.children > #module_list do
+        group_table.children[#group_table.children].destroy()
+    end
+
+    local free_slots = 0
+    if not module_list[#module_list].module then
+        free_slots = module_list[#module_list].count
+    end
+    local total_count = 0
+    for i = 1, #group_table.children do
+        local child = group_table.children[i]
+        local entry = module_list[i]
+        local mod = entry and entry.module
+        total_count = total_count + entry.count
+        local minimum = mod and 1 or 0
+        local maximum = entry.count
+        local can_change_count = true
+        if i ~= #group_table.children then
+            maximum = maximum + free_slots
+        else
+            if not entry.module then
+                -- Require setting a module to reduce the count of the final group
+                -- TODO maybe don't want to require this, so you can intentionally have empty groups?
+                can_change_count = false
+            end
+        end
+        if minimum == maximum then
+            child.slider.set_slider_minimum_maximum(minimum - 1, maximum)
+            can_change_count = false
+        else
+            child.slider.set_slider_minimum_maximum(minimum, maximum)
+        end
+        child.slider.slider_value = -1
+        child.slider.slider_value = entry.count
+        child.button.elem_value = mod --[[@as PrototypeWithQuality]]
+        if mod then
+            child.button.tooltip = nil
+        else
+            child.button.tooltip = { "module-inserter-ex-choose-module" }
+        end
+        child.textfield.text = tostring(entry.count)
+        child.slider.enabled = can_change_count
+        child.textfield.enabled = can_change_count
+    end
 end
 
 --- @param player LuaPlayer
@@ -961,6 +1098,7 @@ end
 --- @return boolean
 function mi_gui.add_preset(player, pdata, select, data)
     local new_preset = data or types.make_preset_config(util.generate_random_name())
+    util.normalize_preset_config(new_preset)
     table.insert(pdata.saved_presets, new_preset)
     if select then
         pdata.active_config = new_preset
@@ -1264,7 +1402,7 @@ mi_gui.handlers = {
                 local valid, error = util.module_valid_for_config(element.elem_value.name, target_config)
                 if not valid then
                     e.player.print(error)
-                    element.elem_value = module_config.module_list[slot] --[[@as PrototypeWithQuality]] or nil
+                    element.elem_value = util.get_module_for_slot(module_config, slot) --[[@as PrototypeWithQuality]]
                     return
                 end
             end
@@ -1288,6 +1426,120 @@ mi_gui.handlers = {
                 mi_gui.update_module_set(e.player, 0, e.pdata.gui.main.default_module_set, slot_count, module_config_set)
             end
         end,
+
+        choose_grouped_module = function(e)
+            local element = e.event.element
+            if not element then return end
+            local active_config = e.pdata.active_config
+            if not active_config then return end
+            local module_config_table = e.pdata.gui.main.module_config_table
+            if not (module_config_table and module_config_table.valid) then return end
+
+            --- @type ModuleConfigSet
+            local module_config_set
+            --- @type TargetConfig
+            local target_config
+            local tags = element.parent.tags --[[@as GroupedModuleInputTags]]
+            local group_index = tags.group_index
+            local is_default_config = (tags.row_index == 0)
+            local row_config = nil
+            local slot_count
+            if is_default_config then
+                module_config_set = active_config.default
+                slot_count = storage.max_slot_count
+            else
+                row_config = active_config.rows[tags.row_index]
+                module_config_set = row_config.module_configs
+                target_config = row_config.target
+                slot_count = util.get_target_config_max_slots(row_config.target)
+            end
+
+            local module_config = module_config_set.configs[tags.module_row_index]
+            if element.elem_value and target_config then
+                -- If a normal row with assembler targets selected, check if the module is valid
+                local valid, error = util.module_valid_for_config(element.elem_value.name, target_config)
+                if not valid then
+                    e.player.print(error)
+                    element.elem_value = module_config.module_list[tags.group_index] --[[@as PrototypeWithQuality]] or
+                        nil
+                    return
+                end
+            end
+
+            local entry = module_config.module_list[group_index]
+            if not entry then
+                entry = types.make_module_config_entry()
+                module_config.module_list[group_index] = entry
+                entry.count = element.parent.slider.slider_value
+                entry.module = element.elem_value --[[@as BlueprintItemIDAndQualityIDPair]]
+            else
+                entry.module = element.elem_value --[[@as BlueprintItemIDAndQualityIDPair]]
+            end
+            util.normalize_module_config(slot_count, module_config)
+
+            if not is_default_config then
+                mi_gui.update_module_set(e.player, tags.row_index,
+                    mi_gui.get_mct_module_set(module_config_table, tags.row_index), slot_count,
+                    module_config_set)
+            else
+                mi_gui.update_module_set(e.player, 0, e.pdata.gui.main.default_module_set, slot_count, module_config_set)
+            end
+        end,
+
+        set_grouped_module_count_slider = function(e)
+            local element = e.event.element
+            if not element then return end
+            mi_gui.handlers.main.set_grouped_module_count(e, element.slider_value)
+        end,
+
+        set_grouped_module_count_field = function(e)
+            local element = e.event.element
+            if not element then return end
+            local num = tonumber(element.text)
+            if num then
+                mi_gui.handlers.main.set_grouped_module_count(e, num)
+            end
+        end,
+
+        set_grouped_module_count = function(e, new_count)
+            local element = e.event.element
+            if not element then return end
+            local active_config = e.pdata.active_config
+            if not active_config then return end
+            local module_config_table = e.pdata.gui.main.module_config_table
+            if not (module_config_table and module_config_table.valid) then return end
+
+            --- @type ModuleConfigSet
+            local module_config_set
+            local tags = element.parent.tags --[[@as GroupedModuleInputTags]]
+            local group_index = tags.group_index
+            local is_default_config = (tags.row_index == 0)
+            local row_config = nil
+            local slot_count
+            if is_default_config then
+                module_config_set = active_config.default
+                slot_count = storage.max_slot_count
+            else
+                row_config = active_config.rows[tags.row_index]
+                module_config_set = row_config.module_configs
+                slot_count = util.get_target_config_max_slots(row_config.target)
+            end
+
+            local module_config = module_config_set.configs[tags.module_row_index]
+            new_count = math.min(new_count, element.parent.slider.get_slider_maximum())
+            module_config.module_list[group_index].count = new_count
+
+            util.normalize_module_config(slot_count, module_config)
+
+            if not is_default_config then
+                mi_gui.update_module_set(e.player, tags.row_index,
+                    mi_gui.get_mct_module_set(module_config_table, tags.row_index), slot_count,
+                    module_config_set)
+            else
+                mi_gui.update_module_set(e.player, 0, e.pdata.gui.main.default_module_set, slot_count, module_config_set)
+            end
+        end,
+
         --- @param e MiEventInfo
         destroy_tool = function(e)
             e.player.get_main_inventory().remove { name = "module-inserter-ex", count = 1 }
@@ -1295,7 +1547,7 @@ mi_gui.handlers = {
         end,
         --- @param e MiEventInfo
         add_module_row = function(e)
-            local module_row_tags = e.event.element.parent.tags --[[@as ModuleRowTags]]
+            local module_row_tags = e.event.element.parent.parent.tags --[[@as ModuleRowTags]]
             local row_index = module_row_tags.row_index
             --- @type ModuleConfigSet
             local config_set
@@ -1311,7 +1563,9 @@ mi_gui.handlers = {
                 slots = util.get_target_config_max_slots(row_config.target)
                 gui_module_set = mi_gui.get_mct_module_set(e.pdata.gui.main.module_config_table, row_index)
             end
-            config_set.configs[#config_set.configs + 1] = types.make_module_config()
+            local new_config = types.make_module_config()
+            config_set.configs[#config_set.configs + 1] = new_config
+            util.normalize_module_config(slots, new_config)
             mi_gui.update_module_set(e.player, row_index, gui_module_set, slots, config_set)
         end,
         --- @param e MiEventInfo
