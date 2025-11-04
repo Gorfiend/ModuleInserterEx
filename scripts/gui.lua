@@ -943,7 +943,6 @@ function mi_gui.update_modules(player, gui_module_row, slots, config_set, index)
     local module_config = config_set.configs[index]
     gui_module_row.add_module_row_button.visible = (index == #config_set.configs)
     gui_module_row.delete_module_row_button.enabled = #config_set.configs > 1
-    local button_table = gui_module_row.children[1]
     slots = slots or 0
     local module_list = module_config.module_list or {}
     local module_row_tags = gui_module_row.tags --[[@as ModuleRowTags]]

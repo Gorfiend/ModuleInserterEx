@@ -1,12 +1,12 @@
 {
   "name": "ModuleInserterEx",
-  "version": "7.3.0",
+  "version": "7.3.1",
   "factorio_version": "2.0",
   "title": "Module Inserter Extended",
   "author": "Gorfiend (Original author: Choumiko)",
   "homepage": "https://github.com/Gorfiend/ModuleInserterEx",
   "description": "Mass insert/remove modules into machines with construction robots",
-  "dependencies": ["flib >= 0.15.0"],
+  "dependencies": [ "base >= 2.0.67", "flib >= 0.15.0" ],
   "package":{
     "ignore":[ "*.zip", "*.xcf", "screenshots/*" ]
   }
