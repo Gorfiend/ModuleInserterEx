@@ -5,6 +5,26 @@ local checker = {}
 --- @alias Checkers {[string]:Checker}
 --- @alias Checker fun(x): string?
 
+-- "migrations" for exported strings from older versions
+local migrate = {}
+function migrate.v7_3_0_module_config(entry)
+    if entry.module_list and next(entry.module_list) == nil then return end
+    for key, value in pairs(entry.module_list) do
+        if value == false then
+            entry.module_list[key] = {
+                count = 1,
+            }
+        elseif value.count == nil then
+            value.count = 1
+            value.module = {}
+            value.module.name = value.name
+            value.name = nil
+            value.module.quality = value.quality
+            value.quality = nil
+        end
+    end
+end
+
 local function is_array(t)
     local i = 0
     for _ in pairs(t) do
@@ -136,16 +156,28 @@ end
 
 --- @return string? error string
 function checker.module_config(config)
+    migrate.v7_3_0_module_config(config)
     return check_all("module_config", config, {
         module_list = function(x)
-            return check_array("module_list", x, checker.is_module_definition)
+            return check_array("module_list", x, checker.is_module_list_entry)
         end,
     })
 end
 
 --- @return string? error string
+function checker.is_module_list_entry(item)
+    if next(item) == nil then return end
+    return check_all("module_list_entry", item, {
+        count = function(x)
+            if x < 0 then return "not a valid count: " .. x end
+        end,
+        module = checker.is_module_definition,
+    })
+end
+
+--- @return string? error string
 function checker.is_module_definition(item)
-    if item == false then return end
+    if item == nil then return end
     return check_all("item_quality_pair", item, {
         name = function(x)
             -- TODO instead of failing with a missing prototype, maybe do a clean after and notify of the missing things?
