@@ -228,7 +228,7 @@ end
 local function is_ignored_entity(prototype)
     if prototype.module_inventory_size > 1000 then
         -- Assume anything with this big an inventory isn't meant for the player
-        -- The biggest inventory I know of that is valud is 200 (from Py alien life)
+        -- The biggest inventory I know of that is valid is 200 (from Py alien life)
         return true
     end
     if prototype.name == "mupgrade-beacon" then
@@ -246,21 +246,41 @@ local function is_ignored_entity(prototype)
 end
 
 local function create_lookup_tables()
+    storage.type_to_slot_bonus = {}
     storage.name_to_slot_count = {}
     storage.module_entities = {}
     storage.min_slot_count = 0
     storage.max_slot_count = 0
-    local i = 1
+
+    local function update_bonus_entry(key, new_value)
+        storage.type_to_slot_bonus[key] = math.max(storage.type_to_slot_bonus[key] or 0, new_value)
+    end
+    for _, prototype in pairs(prototypes.quality) do
+        update_bonus_entry("assembling-machine", prototype.crafting_machine_module_slots_bonus)
+        update_bonus_entry("furnace", prototype.crafting_machine_module_slots_bonus)
+        update_bonus_entry("rocket-silo", prototype.crafting_machine_module_slots_bonus)
+        update_bonus_entry("beacon", prototype.beacon_module_slots_bonus)
+        update_bonus_entry("lab", prototype.lab_module_slots_bonus)
+        update_bonus_entry("mining-drill", prototype.mining_drill_module_slots_bonus)
+    end
+
     for name, prototype in pairs(prototypes.entity) do
-        local proto_inv_size = prototype.module_inventory_size
-        if proto_inv_size and proto_inv_size > 0 and not is_ignored_entity(prototype) then
-            storage.name_to_slot_count[name] = proto_inv_size
-            storage.module_entities[i] = name
-            storage.max_slot_count = math.max(storage.max_slot_count, proto_inv_size)
-            if storage.min_slot_count == 0 or storage.min_slot_count > proto_inv_size then
-                storage.min_slot_count = proto_inv_size
+        if not is_ignored_entity(prototype) then
+            local base_slots = prototype.module_inventory_size
+            if base_slots > 0 then
+                local max_slots = base_slots
+                if prototype.quality_affects_module_slots then
+                    max_slots = base_slots + storage.type_to_slot_bonus[prototype.type]
+                end
+                if base_slots and base_slots > 0 then
+                    storage.name_to_slot_count[name] = max_slots
+                    table.insert(storage.module_entities, name)
+                    storage.max_slot_count = math.max(storage.max_slot_count, max_slots)
+                    if storage.min_slot_count == 0 or storage.min_slot_count > base_slots then
+                        storage.min_slot_count = base_slots
+                    end
+                end
             end
-            i = i + 1
         end
     end
 end
@@ -524,7 +544,7 @@ remote.add_interface("ModuleInserterEx", {
         if not module_config then return end
 
         local module_list = module_config and module_config.module_list
-        local module_count = prototypes.entity[ent_name].module_inventory_size
+        local module_count = storage.name_to_slot_count[ent_name]
         while #module_list > module_count do
             table.remove(module_list)
         end

@@ -1,5 +1,6 @@
 --- @class (exact) GlobalData
 --- @field delayed_work DelayedWorkData[]
+--- @field type_to_slot_bonus {[string]:int} Entity types to their highest module slot bonus from quality
 --- @field name_to_slot_count {[string]:int} Name of all entities mapped to their module slot count
 --- @field min_slot_count int Number of slots the entity with the fewest has
 --- @field max_slot_count int Number of slots the entity with the most has (used for default config slot count)
