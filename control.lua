@@ -225,23 +225,16 @@ local function on_player_reverse_selected_area(e)
     end
 end
 
+---@param prototype LuaEntityPrototype
 local function is_ignored_entity(prototype)
-    if prototype.module_inventory_size > 1000 then
-        -- Assume anything with this big an inventory isn't meant for the player
-        -- The biggest inventory I know of that is valid is 200 (from Py alien life)
-        return true
-    end
-    if prototype.name == "mupgrade-beacon" then
-        -- Special beacon to implement building bonuses
-        return true
-    end
-    if prototype.name:match("^se-.*-grounded$") then
+    if prototype.name:match("^se-.*-spaced$") then
         -- "grounded" entities from SE get special handling, so we ignore them here
         -- and when applying modules automatically treat them as the non-grounded type
-        -- There is also at least one "spaced" entity, but that accepts different modules
+        -- there is also at least one "spaced" entitiy that accepts different modules
         -- so we will keep it as an option for the player to set differently
-        return true
+        return false
     end
+    if prototype.hidden then return true end
     return false
 end
 

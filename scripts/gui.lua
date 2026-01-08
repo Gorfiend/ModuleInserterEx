@@ -10,6 +10,8 @@ local MODULE_GROUP_FRAME_WIDTH = 166
 local MODULE_SET_WIDTH = 440
 local PRESET_BUTTON_FIELD_WIDTH = 200
 
+local MODULE_FILTER = { { filter = "type", type = "module" }, {filter = "hidden", invert = true, mode = "and"} }
+
 local mi_gui = {}
 
 mi_gui.templates = {
@@ -25,7 +27,7 @@ mi_gui.templates = {
             style = "slot_button",
             handler = { [defines.events.on_gui_elem_changed] = mi_gui.handlers.main.choose_assembler },
             elem_type = "entity",
-            elem_filters = { { filter = "name", name = storage.module_entities } },
+            -- elem_filters set in update_target_section
             tooltip = { "module-inserter-ex-choose-assembler" },
             --- @type TargetButtonTags
             tags = {
@@ -67,7 +69,7 @@ mi_gui.templates = {
             name = "module_button_" .. slot_index,
             handler = { [defines.events.on_gui_elem_changed] = mi_gui.handlers.main.choose_module },
             elem_type = "item-with-quality",
-            elem_filters = { { filter = "type", type = "module" } },
+            elem_filters = MODULE_FILTER,
             --- @type ModuleButtonTags
             tags = {
                 row_index = module_row_tags.row_index,
@@ -101,7 +103,7 @@ mi_gui.templates = {
                     name = "button",
                     handler = { [defines.events.on_gui_elem_changed] = mi_gui.handlers.main.choose_grouped_module },
                     elem_type = "item-with-quality",
-                    elem_filters = { { filter = "type", type = "module" } },
+                    elem_filters = MODULE_FILTER,
                     style = "slot_button",
                 },
                 {
