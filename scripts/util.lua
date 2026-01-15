@@ -78,7 +78,7 @@ function util.recipe_pair_from_entity(entity)
 
     local type = util.get_entity_type(entity)
 
-    if type == "assembling-machine" then
+    if type == "assembling-machine" or type == "rocket-silo" then
         local r, q = entity.get_recipe()
         if r and q then
             return {

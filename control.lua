@@ -118,11 +118,7 @@ function control.delayed_creation(e)
 
             --- @type PrototypeWithQuality?
             local recipe = nil
-            if ent_type == "assembling-machine" then
-                recipe = util.recipe_pair_from_entity(entity)
-            elseif ent_type == "furnace" then
-                recipe = util.normalize_recipe_id_quality_pair(entity.previous_recipe)
-            end
+            recipe = util.recipe_pair_from_entity(entity)
 
             local cache_key
             if recipe then

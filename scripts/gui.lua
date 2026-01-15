@@ -2,6 +2,7 @@ local table = require("__flib__.table")
 local gui = require("__flib__.gui")
 
 local import_export = require("scripts.import-export")
+local import_blueprint = require("scripts.import-blueprint")
 local types = require("scripts.types")
 local util = require("scripts.util")
 
@@ -985,7 +986,7 @@ function mi_gui.update_modules(player, gui_module_row, slots, config_set, index)
     -- Also, technically could be different for each quality level, but don't want to deal with that...
     total_effects.quality = total_effects.quality * 0.1
     for key, value in pairs(total_effects) do
-        if key == "quality" and #prototypes.quality == 2 then -- "Normal" and "unknown"
+        if key == "quality" and #prototypes.quality == 2 then -- "normal" and "unknown"
             -- Skip showing quality if it isn't enabled
             goto continue
         end
@@ -1729,7 +1730,17 @@ mi_gui.handlers = {
 
         --- @param e MiEventInfo
         import = function(e)
-            mi_gui.create_import_window(e.pdata, e.player)
+            if e.player.is_cursor_blueprint() then
+                local preset = import_blueprint.import_blueprint(e.player)
+                if type(preset) == "string" then
+                    e.player.print({ "failed-to-import-string", preset })
+                    return
+                end
+                util.normalize_preset_config(preset)
+                mi_gui.add_preset(e.player, e.pdata, true, preset)
+            else
+                mi_gui.create_import_window(e.pdata, e.player)
+            end
         end,
         --- @param e MiEventInfo
         export = function(e)
@@ -1862,7 +1873,7 @@ mi_gui.handlers = {
             end
             for _, preset in ipairs(configs) do
                 util.normalize_preset_config(preset)
-                mi_gui.add_preset(e.player, e.pdata, false, preset)
+                mi_gui.add_preset(e.player, e.pdata, true, preset)
             end
             mi_gui.handlers.import.close_button(e)
         end,

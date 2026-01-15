@@ -1,6 +1,8 @@
 ---------------------------------------------------------------------------------------------------
 Version: 7.3.4
 Date: ????
+  Features:
+    - Add import from blueprint - click the import button while holding a blueprint.
   Changes:
     - Hide machines/modules that are marked as "hidden"
 ---------------------------------------------------------------------------------------------------
