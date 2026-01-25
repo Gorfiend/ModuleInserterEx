@@ -100,13 +100,10 @@ function control.delayed_creation(e)
             local is_ghost = entity.type == "entity-ghost"
 
             local ent_name
-            local ent_type
             if is_ghost then
                 ent_name = entity.ghost_name
-                ent_type = entity.ghost_type
             else
                 ent_name = entity.name
-                ent_type = entity.type
             end
 
             ent_name = util.convert_entity_name(ent_name)
@@ -141,7 +138,6 @@ function control.delayed_creation(e)
             end
 
             if cached_value == true then
-                work_data.entity_recipe_to_config_cache[cache_key] = true
                 goto continue -- Don't set anything on this entity type
             end
 
@@ -254,9 +250,9 @@ local function create_lookup_tables()
     end
 
     for name, prototype in pairs(prototypes.entity) do
-        if not is_ignored_entity(prototype) then
-            local base_slots = prototype.module_inventory_size
-            if base_slots > 0 then
+        local base_slots = prototype.module_inventory_size
+        if base_slots > 0 then
+            if not is_ignored_entity(prototype) then
                 local max_slots = base_slots
                 if prototype.quality_affects_module_slots then
                     max_slots = base_slots + storage.type_to_slot_bonus[prototype.type]
