@@ -1,6 +1,6 @@
 ---------------------------------------------------------------------------------------------------
-Version: 7.3.4
-Date: ????
+Version: 7.4.0
+Date: 2026-01-25
   Features:
     - Add import from blueprint - click the import button while holding a blueprint.
   Changes:
