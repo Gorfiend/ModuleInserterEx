@@ -1,6 +1,8 @@
 ---------------------------------------------------------------------------------------------------
 Version: 7.4.1
 Date: ????
+  Changes:
+    - Removed "Clear All" button (was causing a crash)
   Bugfixes:
     - Fix crash when another mod makes all machines have the same number of module slots
 ---------------------------------------------------------------------------------------------------

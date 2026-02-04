@@ -567,13 +567,6 @@ function mi_gui.create(player_index)
                                         tooltip = { "module-inserter-ex-module-configuration-tooltip" },
                                     },
                                     mi_gui.templates.pushers.horizontal,
-                                    {
-                                        type = "sprite-button",
-                                        style = "tool_button_red",
-                                        sprite = "utility/trash",
-                                        tooltip = { "module-inserter-ex-config-button-clear-all" },
-                                        handler = mi_gui.handlers.main.clear_all,
-                                    },
                                 }
                             },
                             {
@@ -904,7 +897,6 @@ function mi_gui.update_target_section(target_section, target_config)
     end
     -- Add recipe buttons as needed
     for i, config_recipe in ipairs(target_config.recipes) do
-        local index = i + #target_config.entities + 1
         local _, button = gui.add(target_entity_table, { mi_gui.templates.recipe_button(row_index, i) })
         button.elem_value = config_recipe
         button.elem_filters = recipe_filters
@@ -1244,12 +1236,6 @@ mi_gui.handlers = {
         --- @param e MiEventInfo
         default_checkbox = function(e)
             e.pdata.active_config.use_default = e.pdata.gui.main.default_checkbox.state
-            mi_gui.update_module_config_table(e.player, e.pdata)
-        end,
-        --- @param e MiEventInfo
-        clear_all = function(e)
-            e.pdata.active_config.default = types.make_module_config_set()
-            e.pdata.active_config.rows = { types.make_row_config() }
             mi_gui.update_module_config_table(e.player, e.pdata)
         end,
         --- @param e MiEventInfo
