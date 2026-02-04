@@ -4,6 +4,7 @@
 --- @field name_to_slot_count {[string]:int} Name of all entities mapped to their module slot count
 --- @field min_slot_count int Number of slots the entity with the fewest has
 --- @field max_slot_count int Number of slots the entity with the most has (used for default config slot count)
+--- @field use_slot_count_target boolean Whether the slot count target is available (disabled when everything has the same number of slots)
 --- @field module_entities string[] all entities that have valid module slots
 --- @field _pdata {[int]:PlayerConfig}
 --- @field nth_tick_registered int? The tick that the on_nth_tick delayed_creation listener is registered for, or nil if not registered

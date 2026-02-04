@@ -1,4 +1,9 @@
 ---------------------------------------------------------------------------------------------------
+Version: 7.4.1
+Date: ????
+  Bugfixes:
+    - Fix crash when another mod makes all machines have the same number of module slots
+---------------------------------------------------------------------------------------------------
 Version: 7.4.0
 Date: 2026-01-25
   Features:

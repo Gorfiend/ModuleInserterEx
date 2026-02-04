@@ -268,6 +268,7 @@ local function create_lookup_tables()
             end
         end
     end
+    storage.use_slot_count_target = (storage.min_slot_count ~= storage.max_slot_count)
 end
 
 local function remove_invalid_items()

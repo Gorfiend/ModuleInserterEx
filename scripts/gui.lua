@@ -11,7 +11,7 @@ local MODULE_GROUP_FRAME_WIDTH = 166
 local MODULE_SET_WIDTH = 440
 local PRESET_BUTTON_FIELD_WIDTH = 200
 
-local MODULE_FILTER = { { filter = "type", type = "module" }, {filter = "hidden", invert = true, mode = "and"} }
+local MODULE_FILTER = { { filter = "type", type = "module" }, { filter = "hidden", invert = true, mode = "and" } }
 
 local mi_gui = {}
 
@@ -111,8 +111,6 @@ mi_gui.templates = {
                     type = "slider",
                     name = "slider",
                     handler = mi_gui.handlers.main.set_grouped_module_count_slider,
-                    minimum_value = storage.min_slot_count,
-                    maximum_value = storage.max_slot_count,
                     discrete_values = true,
                     style = "notched_slider",
                     style_mods = {
@@ -241,6 +239,62 @@ mi_gui.templates = {
     --- @param row_index int
     --- @return flib.GuiElemDef
     target_section = function(row_index)
+        local slot_flow = {}
+        local details_button = {}
+
+        if storage.use_slot_count_target then
+            details_button = {
+                type = "sprite-button",
+                name = "show_details_button",
+                handler = mi_gui.handlers.main.show_target_details,
+                tooltip = { "module-inserter-ex-show-full-target-config" },
+                sprite = "utility/list_view",
+                style = "tool_button",
+                style_mods = { margin = 6, },
+            }
+            slot_flow = {
+                type = "flow",
+                name = "slot_count_flow",
+                visible = false,
+                style_mods = {
+                    vertical_align = "center",
+                },
+                children = {
+                    {
+                        type = "checkbox",
+                        name = "checkbox",
+                        caption = { "module-inserter-ex-target-config-slots" },
+                        handler = { [defines.events.on_gui_checked_state_changed] = mi_gui.handlers.main.slot_count_check },
+                        state = false,
+                    },
+                    {
+                        type = "slider",
+                        name = "slider",
+                        handler = mi_gui.handlers.main.set_slot_count_slider,
+                        minimum_value = storage.min_slot_count,
+                        maximum_value = storage.max_slot_count,
+                        discrete_values = true,
+                        style = "notched_slider",
+                        style_mods = {
+                            horizontally_stretchable = true,
+                            minimal_width = 100,
+                        },
+                    },
+                    {
+                        type = "textfield",
+                        name = "textfield",
+                        handler = { [defines.events.on_gui_confirmed] = mi_gui.handlers.main.set_slot_count_field, },
+                        numeric = true,
+                        allow_decimal = false,
+                        allow_negative = false,
+                        style_mods = {
+                            width = 50,
+                        },
+                    },
+                },
+            }
+        else
+        end
         return {
             type = "frame",
             name = "target_section_" .. row_index,
@@ -275,15 +329,7 @@ mi_gui.templates = {
                         },
                     },
                 },
-                {
-                    type = "sprite-button",
-                    name = "show_details_button",
-                    handler = mi_gui.handlers.main.show_target_details,
-                    tooltip = { "module-inserter-ex-show-full-target-config" },
-                    sprite = "utility/list_view",
-                    style = "tool_button",
-                    style_mods = { margin = 6, },
-                },
+                details_button,
                 {
                     type = "flow",
                     name = "target_flow",
@@ -300,47 +346,7 @@ mi_gui.templates = {
                                 mi_gui.templates.target_entity_table(row_index, 6),
                             },
                         },
-                        {
-                            type = "flow",
-                            name = "slot_count_flow",
-                            visible = false,
-                            style_mods = {
-                                vertical_align = "center",
-                            },
-                            children = {
-                                {
-                                    type = "checkbox",
-                                    name = "checkbox",
-                                    caption = { "module-inserter-ex-target-config-slots" },
-                                    handler = { [defines.events.on_gui_checked_state_changed] = mi_gui.handlers.main.slot_count_check },
-                                    state = false,
-                                },
-                                {
-                                    type = "slider",
-                                    name = "slider",
-                                    handler = mi_gui.handlers.main.set_slot_count_slider,
-                                    minimum_value = storage.min_slot_count,
-                                    maximum_value = storage.max_slot_count,
-                                    discrete_values = true,
-                                    style = "notched_slider",
-                                    style_mods = {
-                                        horizontally_stretchable = true,
-                                        minimal_width = 100,
-                                    },
-                                },
-                                {
-                                    type = "textfield",
-                                    name = "textfield",
-                                    handler = { [defines.events.on_gui_confirmed] = mi_gui.handlers.main.set_slot_count_field, },
-                                    numeric = true,
-                                    allow_decimal = false,
-                                    allow_negative = false,
-                                    style_mods = {
-                                        width = 50,
-                                    },
-                                },
-                            },
-                        },
+                        slot_flow,
                     },
                 },
             },
@@ -838,9 +844,11 @@ function mi_gui.update_target_section(target_section, target_config)
     local target_entity_table = target_section.target_flow.target_frame.target_entity_table
     target_entity_table.clear() -- TODO optimize - don't delete everything
 
-    target_section.show_details_button.toggled = target_config.show_details
+    if storage.use_slot_count_target then
+        target_section.show_details_button.toggled = target_config.show_details
 
-    mi_gui.update_target_slot_count(target_section.target_flow.slot_count_flow, target_config)
+        mi_gui.update_target_slot_count(target_section.target_flow.slot_count_flow, target_config)
+    end
 
     if not target_config.show_details and #target_config.entities == 0 and #target_config.recipes == 0 and util.target_config_has_entries(target_config) then
         -- Hides the machine/recipe table when not showing details and a different target has been set
